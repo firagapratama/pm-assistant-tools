@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS } from '../calc/settings.ts';
 import { projectStatus, statusInputFrom } from '../project-status.ts';
 import { HIGH_RISK, raidScore, reviewOverdue, severity } from '../raid.ts';
 import { weekOf } from '../report.ts';
+import { dashboardData } from './dashboard.ts';
 import { openDb, type Db } from './db/index.ts';
 import { createEstimate, finalizeEstimate, getEstimate, saveEstimate } from './estimates.ts';
 import { createRole, loadOfficialHolidays } from './master.ts';
@@ -184,5 +185,23 @@ describe('aktivitas sprint otomatis', () => {
 			updateFeatureSchedule(db, projectId, f.key, { planStart: f.planStart, planEnd: f.planEnd, progress: 10 });
 			expect(getProject(db, projectId)!.activities.find((a) => a.id === empty.id)!.done).toBe(true);
 		}
+	});
+});
+
+describe('dashboard utama', () => {
+	it('pipeline, kesehatan, peran, RAID, dan tenggat dari data proyek', () => {
+		saveRaid(db, projectId, null, risk); // risiko tinggi tanpa mitigasi
+		saveRaid(db, projectId, null, { ...risk, type: 'issue', description: 'Server staging mati' });
+		const d = dashboardData(db, '2027-07-05');
+		expect(d.pipeline.find((s) => s.status === 'deal')).toMatchObject({ count: 1 });
+		expect(d.pipeline.find((s) => s.status === 'deal')!.value).toBeGreaterThan(0);
+		expect(d.kpi).toMatchObject({ activeProjects: 1, winRate: 100, decided: 1, highRisks: 1, openPipelineCount: 0 });
+		expect(d.health.find((h) => h.health === 'merah')!.count).toBe(1);
+		expect(d.roles).toEqual([{ name: 'Backend', mp: 1 }]);
+		expect(d.raidByType.find((r) => r.type === 'risk')).toMatchObject({ count: 1, high: 1 });
+		expect(d.raidByType.find((r) => r.type === 'issue')).toMatchObject({ count: 1, high: 0 });
+		expect(d.due.map((x) => x.name)).toContain('Kick-off proyek');
+		expect(d.intake).toHaveLength(6);
+		expect(d.intake.at(-1)!.month).toBe('2027-07');
 	});
 });

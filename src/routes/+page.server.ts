@@ -1,3 +1,3 @@
 import { redirect } from '@sveltejs/kit';
 
-export const load = () => redirect(303, '/prospek');
+export const load = () => redirect(303, '/dashboard');

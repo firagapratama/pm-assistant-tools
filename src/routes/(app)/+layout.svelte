@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { BookOpen, FolderKanban, Inbox, LogOut, Settings } from '@lucide/svelte';
+	import { BookOpen, FolderKanban, Inbox, LayoutDashboard, LogOut, Settings } from '@lucide/svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
 
 	const nav = [
+		{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
 		{ href: '/prospek', label: 'Prospek', icon: Inbox },
 		{ href: '/proyek', label: 'Proyek', icon: FolderKanban },
 		{ href: '/library', label: 'Library', icon: BookOpen }
@@ -197,6 +198,16 @@
 		}
 		main {
 			padding: var(--jarak-6) var(--jarak-4);
+		}
+	}
+	/* Ponsel sempit: cukup "PM" agar enam ikon navigasi muat tanpa geser horizontal. */
+	@media (max-width: 439px) {
+		.wordmark span {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
 		}
 	}
 </style>

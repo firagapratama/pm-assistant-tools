@@ -277,24 +277,31 @@ Kolom kanban tanpa latar kartu tebal: setiap item dipisahkan garis tipis, dengan
 
 ### 5.5 Dashboard Proyek
 
+> **Diperbarui 26 Nov 2026 (keputusan PM):** satu kartu per proyek, menggantikan daftar dua baris.
+
 ```
-Proyek
-2 Merah · 1 Kuning · 4 Hijau      3 risiko tinggi · 2 blocker · 1 CR menunggu
-──────────────────────────────────────────────────────────────────────────────
-● Merah   CRM Internal                          Sprint 5/8   Proyeksi 14 Feb
-          Proyeksi mundur 24% dari rencana       ▓▓▓▓▓▓░░░░│░░  52% (rencana 61%)
-──────────────────────────────────────────────────────────────────────────────
-● Kuning  Portal Vendor PT Sinar                Sprint 3/6   Proyeksi 20 Jan
-          Ditetapkan PM: vendor API belum siap   ▓▓▓▓░░│░░░░░  38% (rencana 45%)
-──────────────────────────────────────────────────────────────────────────────
-● Hijau   Aplikasi Kasir Toko Maju              Sprint 2/6   Sesuai rencana
-          —                                      ▓▓▓│░░░░░░░░  30% (rencana 28%)
+┌─────────┬──────────┬─────────┬───────────────┬─────────┬─────────────┐
+│ ● Merah │ ● Kuning │ ● Hijau │ Risiko tinggi │ Blocker │ CR menunggu │
+│ 2       │ 1        │ 4       │ 3             │ 2       │ 1           │
+└─────────┴──────────┴─────────┴───────────────┴─────────┴─────────────┘
+┌────────────────────────────────┐  ┌────────────────────────────────┐
+│ CRM Internal          ● Merah  │  │ Aplikasi Kasir        ● Hijau  │
+│ PT Sinar                       │  │ Toko Maju                      │
+│ ┌ Proyeksi mundur 24% ───────┐ │  │                                │
+│ Progres       52% · rencana 61%│  │ Progres       30% · rencana 28%│
+│ ▓▓▓▓▓▓▓▓░░│░░░░░░░░░░░░░░░░░░ │  │ ▓▓▓▓▓│░░░░░░░░░░░░░░░░░░░░░░░ │
+│ ────────────────────────────── │  │ ────────────────────────────── │
+│ Sprint 5/8   Proyeksi 14 Feb   │  │ Sprint 2/6   Proyeksi 30 Mar   │
+│ Tenggat      Perlu perhatian   │  │ Tenggat      Perlu perhatian   │
+└────────────────────────────────┘  └────────────────────────────────┘
 ```
 
-- Ringkasan angka di baris paling atas, berupa teks biasa, bukan kartu metrik.
-- Satu baris per proyek, diurutkan dari yang paling bermasalah. Alasan status selalu tampil di baris kedua.
-- Bilah progres: isi `--nila`, latar `--nila-tipis`, garis vertikal `│` 1,5px `--tinta` sebagai posisi rencana hari ini. Jarak antara isi dan garis langsung menunjukkan tertinggal atau di depan.
-- Klik baris membuka halaman proyek.
+- Ringkasan berupa satu strip enam sel sama lebar dengan garis pemisah tipis: Merah, Kuning, Hijau (dengan titik warna), Risiko tinggi, Blocker, CR menunggu. Label kecil `--tinta-2` di atas, angka `--teks-h2` di bawah; angka di atas nol berwarna `--kritis`/`--waspada`. Di ponsel menjadi 3 × 2.
+- Kartu proyek dalam grid (lebar minimal 340px), diurutkan dari yang paling bermasalah; seluruh kartu dapat diklik.
+- Alasan status tampil dalam kotak berwarna tipis hanya bila status bukan Hijau atau ditetapkan manual.
+- Bilah progres 8px: isi `--nila`, latar `--nila-tipis`, garis tegak 2px `--tinta` sebagai posisi rencana hari ini.
+- Empat fakta di bawah garis: sprint berjalan, proyeksi selesai (dengan "+n hari" `--waspada` bila mundur), tenggat terdekat, dan hal yang perlu perhatian.
+- Proyek selesai/ditunda di bagian terpisah dengan kartu lebih redup. Cara status dihitung disembunyikan dalam tautan "Cara status dihitung".
 
 ### 5.6 Halaman Proyek
 
@@ -615,7 +622,7 @@ Daftar ini membantu menjaga kesan minimalis tetap konsisten seiring bertambahnya
 - Tidak ada warna status untuk hal yang bukan status.
 - Tidak ada label huruf kapital semua atau label kecil berlebih di atas setiap judul.
 - Tidak ada animasi yang tidak dipicu oleh aksi pengguna.
-- Tidak ada kartu metrik besar di dashboard; angka ringkasan cukup berupa satu baris teks.
+- Tidak ada kartu metrik besar di dashboard; ringkasan angka cukup satu panel tipis. Kartu dipakai per proyek, bukan per angka.
 - Warna status tidak dipakai untuk bar Gantt; keterlambatan cukup ditandai label.
 
 ## 13. Keputusan Desain
