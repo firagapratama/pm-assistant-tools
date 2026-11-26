@@ -1,12 +1,19 @@
 # Tech Stack — PM Workspace
 
-**Rancangan teknis yang ringan untuk server kecil.** Pendamping `PRD-PM-Workspace.md` (v0.2) dan `design.md` (v0.2).
+**Rancangan teknis yang ringan untuk server kecil.** Pendamping `PRD-PM-Workspace.md` (v0.4) dan `design.md` (v0.3).
 
 | Atribut | Keterangan |
 |---|---|
-| Versi | 0.1 (Draft) |
+| Versi | 0.2 |
 | Tanggal | 26 November 2026 |
-| Status | Usulan; menjawab Q1 di PRD, menunggu konfirmasi (Bagian 14) |
+| Status | Stack diputuskan dan berjalan di lokal. Hosting belum diputuskan (Bagian 14). |
+
+**Riwayat perubahan**
+
+| Versi | Perubahan |
+|---|---|
+| 0.1 | Usulan awal. |
+| 0.2 | Diselaraskan dengan PRD v0.4: stack dikonfirmasi (T2); effort disimpan dalam jam; ditambahkan integrasi AI (4.3), kalender libur (4.4), backup lokal sebelum deploy (10.1), dan aturan keamanan AI. |
 
 ---
 
@@ -42,7 +49,9 @@ Prinsip pemilihan: **sesedikit mungkin layanan yang harus dijalankan dan dirawat
 | Ekspor tabel | CSV (bawaan), XLSX opsional via **SheetJS** dimuat saat dibutuhkan | Ekspor data estimasi |
 | Web server | **Caddy** | Reverse proxy dan HTTPS otomatis |
 | Proses | **systemd** | Menjalankan dan memulai ulang aplikasi |
-| Backup | **Litestream** ke object storage, atau `sqlite3 .backup` + cron | Cadangan data |
+| Backup | Lokal: skrip `better-sqlite3` backup ke folder tersinkron cloud. Server: **Litestream** atau backup harian | Cadangan data |
+| Draf AI | API **kompatibel OpenAI**, dipanggil dengan `fetch` dari server (tanpa SDK) | Draf fitur estimasi |
+| Kalender libur | Tabel `holidays` di SQLite, diisi dari SKB libur nasional dan cuti bersama | Kapasitas sprint dan jadwal |
 | Pengujian | **Vitest** | Uji mesin kalkulasi |
 | Package manager | **pnpm** | Instalasi dependensi |
 
@@ -126,10 +135,38 @@ Kesalahan pembulatan pada angka biaya akan merusak kepercayaan direksi, jadi atu
 |---|---|---|
 | Rupiah | Integer (rupiah penuh) | `279450000` |
 | Persentase | Integer basis poin (1% = 100) | 15% → `1500` |
-| Effort | Integer dalam satuan terkecil (setengah jam = 1 SP pada default) atau desimal dengan presisi tetap | — |
+| Effort | **Jam** (desimal). SP hanya untuk input dan tampilan, dikonversi dengan `sp_per_jam` dari snapshot estimasi | 12,5 jam |
 | Hasil antara | Number biasa, dibulatkan **hanya** di akhir dengan aturan tertulis | — |
 
 Tidak ada perhitungan uang dengan floating point yang hasilnya langsung disimpan. Pembulatan Rupiah dilakukan ke rupiah terdekat di langkah terakhir.
+
+### 4.3 Integrasi AI (Draf Fitur)
+
+```
+Browser ──► SvelteKit server ──(fetch, HTTPS)──► Penyedia AI (API kompatibel OpenAI)
+            ├─ susun prompt dari data yang diizinkan
+            ├─ samarkan identitas (opsional)
+            ├─ validasi respons (Valibot)
+            └─ catat ke tabel ai_calls (tanpa isi teks)
+```
+
+| Aspek | Ketentuan |
+|---|---|
+| Konfigurasi | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` di variabel lingkungan. Jika `AI_API_KEY` kosong, fitur nonaktif otomatis. |
+| Lokasi pemanggilan | Hanya dari server (`src/lib/server/ai/`). API key tidak pernah ada di kode browser. |
+| Dependensi | `fetch` bawaan Node ke endpoint `/chat/completions`. Tanpa SDK, agar dependensi tetap kecil dan penyedia mudah diganti. |
+| Data terkirim | Sesuai PRD F4: nama proyek, kebutuhan, tujuan, catatan, nama peran. Penyamaran dilakukan di server sebelum request dibuat. |
+| Format respons | Model diminta mengembalikan JSON saja; hasil divalidasi dengan Valibot. Jika tidak valid, tampilkan pesan dan tidak ada yang disimpan. |
+| Batas | Timeout 30 detik (`AbortController`), batas token keluaran, satu request berjalan pada satu waktu. |
+| Log | Tabel `ai_calls`: waktu, penyedia, model, jumlah karakter, disamarkan atau tidak, berhasil atau gagal. |
+| Model lokal | Karena API-nya kompatibel OpenAI, server model lokal di laptop dapat dipakai saat development untuk data yang sangat rahasia. VPS kecil tidak cukup untuk menjalankan model. |
+
+### 4.4 Kalender Libur
+
+- Tabel `holidays` (tanggal, nama, jenis: libur nasional / cuti bersama), diisi dari SKB resmi dan dapat diubah di Pengaturan.
+- Diperbarui setiap kali SKB tahun berikutnya terbit; aplikasi menampilkan peringatan jika rencana proyek melewati tahun yang belum ada datanya.
+- Estimasi menyimpan salinan libur (`snapshot_holidays`), sehingga perubahan kalender tidak menggeser estimasi lama.
+- Mesin kalkulasi menerima daftar libur sebagai input, sehingga tetap murni dan mudah diuji.
 
 ## 5. Struktur Folder
 
@@ -149,6 +186,7 @@ pm-workspace/
 │  │  │  ├─ db/
 │  │  │  │  ├─ schema.ts     # skema Drizzle (PRD Bagian 8)
 │  │  │  │  └─ index.ts
+│  │  │  ├─ ai/              # klien AI, penyamaran, prompt, log
 │  │  │  └─ auth.ts          # sesi dan hash password
 │  │  └─ validation/         # skema Valibot
 │  ├─ routes/
@@ -167,6 +205,8 @@ pm-workspace/
 ├─ static/fonts/              # IBM Plex Sans woff2
 ├─ drizzle/                   # file migrasi
 ├─ data/                      # app.db (tidak masuk git)
+├─ scripts/
+│  └─ backup.mjs            # backup lokal (Bagian 10.1)
 └─ deploy/
    ├─ Caddyfile
    ├─ pm-workspace.service
@@ -278,6 +318,47 @@ Docker tidak dipakai. Untuk satu aplikasi di satu server, systemd lebih sederhan
 
 ## 10. Backup
 
+### 10.1 Sekarang: Backup Lokal (sebelum deploy)
+
+Data sungguhan sudah ada di `data/app.db` di laptop. Skrip berikut memakai fitur backup online dari `better-sqlite3` (sudah menjadi dependensi), sehingga aman dijalankan saat aplikasi berjalan dan bekerja di Windows, macOS, maupun Linux.
+
+```js
+// scripts/backup.mjs
+import Database from 'better-sqlite3';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+
+const src = process.env.DATABASE_PATH ?? 'data/app.db';
+const dest = process.env.BACKUP_DIR; // folder yang tersinkron ke cloud
+const keep = 30;
+
+if (!dest) throw new Error('BACKUP_DIR belum diisi');
+mkdirSync(dest, { recursive: true });
+
+const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+const file = `app-${stamp}.db`;
+
+const db = new Database(src);
+await db.backup(join(dest, file));
+db.close();
+
+const old = readdirSync(dest)
+  .filter((f) => /^app-.*\.db$/.test(f))
+  .sort()
+  .reverse()
+  .slice(keep);
+for (const f of old) rmSync(join(dest, f));
+
+console.log(`Backup tersimpan: ${file}`);
+```
+
+- Tambahkan `"db:backup": "node scripts/backup.mjs"` di `package.json`.
+- Jadwalkan harian: cron (macOS/Linux) atau Task Scheduler (Windows). Juga jalankan manual sebelum migrasi database.
+- `BACKUP_DIR` diarahkan ke folder yang tersinkron ke penyimpanan cloud, agar salinan tidak berada di disk yang sama.
+- **Uji pemulihan sekali:** salin satu file backup, jalankan aplikasi dengan `DATABASE_PATH` mengarah ke file itu, pastikan data lengkap.
+
+### 10.2 Setelah Deploy: Backup Server
+
 | Opsi | Cara kerja | Kapan dipilih |
 |---|---|---|
 | **Litestream** (disarankan) | Mereplikasi perubahan SQLite secara terus-menerus ke object storage yang kompatibel S3 (Cloudflare R2, Backblaze B2, dll.) | Ingin kehilangan data maksimal beberapa detik |
@@ -297,6 +378,7 @@ Apa pun pilihannya:
 - Query hanya melalui Drizzle (parameterized), tanpa menyusun SQL dari string.
 - File `.env` dan `data/` tidak masuk git.
 - Pembaruan keamanan OS otomatis (`unattended-upgrades`).
+- API key AI hanya di `.env` server, tidak pernah di repositori atau kode browser; gunakan key khusus aplikasi ini dengan batas pemakaian dari penyedia.
 - Akses SSH hanya dengan key, login password dinonaktifkan.
 
 ## 12. Alat Pengembangan
@@ -336,6 +418,7 @@ Versi setiap dependensi dipilih dari rilis stabil terbaru saat proyek dimulai da
 | ID | Pertanyaan | Dampak |
 |---|---|---|
 | T1 | Spesifikasi VPS yang dimiliki (vCPU, RAM, OS)? | Konfirmasi Bagian 8, kebutuhan swap |
-| T2 | Apakah sudah familiar dengan Svelte/TypeScript, atau lebih nyaman dengan stack lain? | Bisa mengganti framework tanpa mengubah prinsip lain (SQLite, Caddy, systemd, PDF via CSS cetak) |
+| ~~T2~~ | ~~Svelte/TypeScript atau stack lain?~~ **Diputuskan (v0.2):** SvelteKit + TypeScript, sudah berjalan. | — |
 | T3 | Apakah ada domain/subdomain untuk aplikasi ini? | HTTPS otomatis Caddy membutuhkan domain |
-| T4 | Untuk backup, ingin Litestream ke object storage atau backup harian sederhana? | Bagian 10 |
+| T4 | Untuk backup server, ingin Litestream ke object storage atau backup harian sederhana? (Backup lokal sudah ditentukan di 10.1.) | Bagian 10.2 |
+| T5 | Penyedia AI mana yang dipakai, dan sudahkah kebijakan retensi serta pemakaian data untuk pelatihan diperiksa? | Bagian 4.3, PRD F4 |

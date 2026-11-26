@@ -15,7 +15,7 @@ import {
 	refreshRates,
 	saveEstimate
 } from './estimates.ts';
-import { createRole, loadOfficialHolidays, saveSettings, setHoliday, setRate, setRoleActive } from './master.ts';
+import { createRole, getAiEnabled, listAiCalls, loadOfficialHolidays, logAiCall, saveSettings, setAiEnabled, setHoliday, setRate, setRoleActive } from './master.ts';
 import { computeDraft } from '../estimate.ts';
 import { changeStatus, createProspect, getProspect } from './prospects.ts';
 import { dealProspect } from './projects.ts';
@@ -218,5 +218,30 @@ describe('hapus versi estimasi', () => {
 		expect(() => deleteEstimate(db, prospectId, 2)).toThrow(/baseline proyek/);
 		deleteEstimate(db, prospectId, 3); // versi draf lain tetap boleh
 		expect(listEstimates(db, prospectId).map((e) => e.version)).toEqual([2]);
+	});
+});
+
+describe('draf AI (PRD F4)', () => {
+	it('penanda draf AI tersimpan; estimasi tidak bisa final sampai ditinjau', () => {
+		createEstimate(db, prospectId, today);
+		const id = getEstimate(db, prospectId, 1)!.id;
+		const withDraft = draftWith();
+		withDraft.features = [{ ...withDraft.features[0], aiDraft: true }];
+		saveEstimate(db, id, withDraft);
+		expect(getEstimate(db, prospectId, 1)!.draft.features[0].aiDraft).toBe(true);
+		expect(() => finalizeEstimate(db, prospectId, 1)).toThrow(/1 fitur draf AI belum ditinjau/);
+		saveEstimate(db, id, draftWith());
+		expect(getEstimate(db, prospectId, 1)!.draft.features[0].aiDraft).toBeUndefined();
+		finalizeEstimate(db, prospectId, 1);
+	});
+
+	it('saklar AI dan log pemanggilan', () => {
+		expect(getAiEnabled(db)).toBe(true);
+		setAiEnabled(db, false);
+		expect(getAiEnabled(db)).toBe(false);
+		setAiEnabled(db, true);
+		expect(getAiEnabled(db)).toBe(true);
+		logAiCall(db, { provider: 'api.contoh.test', model: 'm', chars: 1234, anonymized: true, ok: true, features: 12 });
+		expect(listAiCalls(db)).toEqual([expect.objectContaining({ provider: 'api.contoh.test', chars: 1234, anonymized: true, features: 12 })]);
 	});
 });

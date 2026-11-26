@@ -155,10 +155,22 @@ export class EstimateEditor {
 	}
 	setPriority(key: number, priority: Priority) {
 		const f = this.features.find((x) => x.key === key);
-		if (f) f.priority = priority;
+		if (f) {
+			f.priority = priority;
+			f.aiDraft = undefined;
+		}
+	}
+	// ── Draf AI (PRD F4): wajib ditinjau; penanda hilang saat diubah atau disetujui ──
+	aiDraftCount = $derived(this.features.filter((f) => f.aiDraft).length);
+	approve(f: EditorFeature) {
+		f.aiDraft = undefined;
+	}
+	approveAll() {
+		for (const f of this.features) f.aiDraft = undefined;
 	}
 	effort = (f: EditorFeature, roleId: number): ThreePoint => f.efforts[roleId] ?? { o: 0, m: 0, p: 0 };
 	setEffort(f: EditorFeature, roleId: number, field: keyof ThreePoint, hours: number) {
+		f.aiDraft = undefined;
 		const t = { ...this.effort(f, roleId), [field]: hours };
 		if (t.o === 0 && t.m === 0 && t.p === 0) delete f.efforts[roleId];
 		else f.efforts[roleId] = t;

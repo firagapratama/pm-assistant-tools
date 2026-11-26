@@ -4,10 +4,10 @@
 
 | Atribut | Keterangan |
 |---|---|
-| Versi dokumen | 0.2 (Draft) |
+| Versi dokumen | 0.4 |
 | Tanggal | 26 November 2026 |
 | Pemilik produk | Project Manager (pengguna tunggal) |
-| Status | Draft, menunggu finalisasi pertanyaan terbuka (Bagian 13) |
+| Status | Fase 1–2 berjalan di lokal (belum dideploy). Status per fitur di Bagian 14. |
 
 **Riwayat perubahan**
 
@@ -15,6 +15,8 @@
 |---|---|
 | 0.1 | Draft awal. |
 | 0.2 | Q2 diputuskan: estimasi dapat diinput dalam story point atau jam, dengan konversi sebagai parameter (default 1 jam = 2 SP). Diperbarui di F1, F4, F5, Bagian 7, 8, 11, 13, dan glosarium. |
+| 0.3 | Disesuaikan dengan sistem yang berjalan: Q1, Q3, Q5 diputuskan; kriteria penerimaan yang sudah terpenuhi dicentang; model data diperbarui; tambahan di luar draf (kalender libur, draf AI, Gantt, aktivitas proyek, status manual) dan keputusan desain F10–F14 dicatat di Bagian 14. |
+| 0.4 | Badan F10 diselaraskan dengan aturan yang berjalan (14.1). Aturan privasi draf AI ditambahkan di F4, Bagian 9, dan 14.2. Status validasi MVP ditambahkan di Bagian 12. Rencana berikutnya (14.3) diurutkan ulang: backup lokal dan privasi AI didahulukan. |
 
 ---
 
@@ -173,9 +175,9 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Peran yang dinonaktifkan tidak muncul di estimasi baru, tetapi tetap tampil pada estimasi lama.
 
 **Kriteria penerimaan:**
-- [ ] PM dapat menambah, mengubah, dan menonaktifkan peran serta rate.
-- [ ] Mengubah rate tidak mengubah angka pada estimasi yang sudah tersimpan.
-- [ ] Parameter default otomatis terisi saat membuat estimasi baru dan bisa diubah per estimasi.
+- [x] PM dapat menambah, mengubah, dan menonaktifkan peran serta rate.
+- [x] Mengubah rate tidak mengubah angka pada estimasi yang sudah tersimpan.
+- [x] Parameter default otomatis terisi saat membuat estimasi baru dan bisa diubah per estimasi.
 
 ### F2 — Pipeline Prospek
 
@@ -191,9 +193,9 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Status `Deal` hanya bisa dipilih jika ada satu versi estimasi yang ditandai **final** (lihat F7).
 
 **Kriteria penerimaan:**
-- [ ] Tampilan daftar dan tampilan kanban per status.
-- [ ] Filter berdasarkan status dan klien; pencarian berdasarkan nama.
-- [ ] Riwayat perubahan status dapat dilihat per prospek.
+- [x] Tampilan daftar dan tampilan kanban per status.
+- [x] Filter berdasarkan status dan klien; pencarian berdasarkan nama.
+- [x] Riwayat perubahan status dapat dilihat per prospek.
 
 ### F3 — Library Fitur
 
@@ -209,8 +211,8 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Setelah F15 aktif, library menampilkan rata-rata realisasi dari proyek sebelumnya sebagai referensi.
 
 **Kriteria penerimaan:**
-- [ ] PM dapat menambah, mengubah, dan menghapus template fitur.
-- [ ] PM dapat menambahkan beberapa fitur dari library sekaligus ke dalam estimasi.
+- [x] PM dapat menambah, mengubah, dan menghapus template fitur.
+- [x] PM dapat menambahkan beberapa fitur dari library sekaligus ke dalam estimasi.
 
 ### F4 — Breakdown dan Estimasi Fitur (PERT)
 
@@ -229,11 +231,21 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Fitur dapat dikelompokkan per modul atau epic.
 - Prioritas memungkinkan simulasi "hanya Must-have" pada F7.
 
+**Draf fitur dengan AI (tambahan, lihat 14):**
+- Pemanggilan AI hanya dilakukan dari server. API key disimpan di variabel lingkungan dan tidak pernah dikirim ke browser.
+- Data yang dikirim dibatasi: nama proyek, kebutuhan, tujuan, catatan, dan nama peran. **Tidak pernah dikirim:** rate, biaya, harga, nama orang, data proyek lain, dan isi RAID/keputusan.
+- Sebelum dikirim, PM melihat **pratinjau teks persis** yang akan dikirim dan dapat mengeditnya.
+- Opsi **samarkan identitas**: nama klien dan nama proyek diganti penanda (misalnya `[Klien]`, `[Proyek]`) sebelum dikirim, lalu dikembalikan di hasil bila muncul.
+- Fitur dapat dimatikan sepenuhnya di Pengaturan. Bila dimatikan atau API key kosong, tombol tidak ditampilkan.
+- Hasil AI masuk sebagai fitur berstatus **draf AI** yang wajib ditinjau. Penanda draf hilang setelah PM mengubah atau menyetujui baris tersebut.
+- Setiap pemanggilan dicatat: waktu, penyedia, model, jumlah karakter terkirim, dan apakah disamarkan. Isi teks tidak disimpan di log.
+- Sebelum memakai penyedia tertentu, periksa kebijakan retensi dan pemakaian data untuk pelatihan model penyedia tersebut.
+
 **Kriteria penerimaan:**
-- [ ] Total effort per peran dan per fitur ter-update otomatis saat angka diubah.
-- [ ] Ditampilkan nilai E (estimasi) dan σ (deviasi) per fitur dan total.
-- [ ] Satuan input dapat diganti per estimasi; angka yang sudah diisi dikonversi otomatis tanpa kehilangan nilai.
-- [ ] Fitur dapat diduplikasi, diurutkan, dan dihapus.
+- [x] Total effort per peran dan per fitur ter-update otomatis saat angka diubah.
+- [x] Ditampilkan nilai E (estimasi) dan σ (deviasi) per fitur dan total.
+- [x] Satuan input dapat diganti per estimasi; angka yang sudah diisi dikonversi otomatis tanpa kehilangan nilai.
+- [x] Fitur dapat diduplikasi, diurutkan, dan dihapus.
 
 ### F5 — Komposisi Tim dan Kalkulasi Sprint
 
@@ -250,9 +262,9 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Peran pengelolaan (PM) tidak dihitung dari effort fitur, melainkan sebagai alokasi persentase sepanjang proyek.
 
 **Kriteria penerimaan:**
-- [ ] Tabel per peran menampilkan: effort (SP dan jam), MP, kapasitas per sprint (SP dan jam), dan sprint dibutuhkan.
-- [ ] Total sprint dan durasi (minggu dan bulan) tampil otomatis.
-- [ ] Peran bottleneck tersorot secara visual.
+- [x] Tabel per peran menampilkan: effort (SP dan jam), MP, kapasitas per sprint (SP dan jam), dan sprint dibutuhkan.
+- [x] Total sprint dan durasi (minggu dan bulan) tampil otomatis.
+- [x] Peran bottleneck tersorot secara visual.
 
 ### F6 — Kalkulasi Biaya dan Harga
 
@@ -268,9 +280,9 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Sistem membedakan **markup** (persentase di atas biaya) dan **margin** (persentase dari harga jual), serta menampilkan keduanya agar tidak terjadi salah paham saat negosiasi.
 
 **Kriteria penerimaan:**
-- [ ] Rincian biaya per peran, overhead, subtotal, contingency, total biaya, dan harga jual tampil berurutan.
-- [ ] Mengubah MP, rate, atau parameter langsung memperbarui seluruh angka.
-- [ ] Ditampilkan rentang biaya bawah dan atas (Bagian 7.4).
+- [x] Rincian biaya per peran, overhead, subtotal, contingency, total biaya, dan harga jual tampil berurutan.
+- [x] Mengubah MP, rate, atau parameter langsung memperbarui seluruh angka.
+- [x] Ditampilkan rentang biaya bawah dan atas (Bagian 7.4).
 
 ### F7 — Skenario dan Versi Estimasi
 
@@ -311,9 +323,9 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Bahasa dan istilah di ringkasan menggunakan bahasa bisnis, bukan istilah teknis (misalnya "bulan", bukan hanya "sprint").
 
 **Kriteria penerimaan:**
-- [ ] Ekspor PDF berukuran A4 dengan tata letak rapi.
+- [x] Ekspor PDF berukuran A4 dengan tata letak rapi.
 - [ ] Opsi tautan baca-saja (Fase 2, opsional).
-- [ ] Opsi menampilkan atau menyembunyikan rincian rate.
+- [x] Opsi menampilkan atau menyembunyikan rincian rate.
 
 ### F9 — Konversi Prospek Menjadi Proyek
 
@@ -328,25 +340,32 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Baseline terkunci. Perubahan scope setelah deal hanya melalui Change Request (F13).
 
 **Kriteria penerimaan:**
-- [ ] Proyek baru muncul dengan data baseline lengkap.
-- [ ] Tautan dua arah antara proyek dan prospek/estimasi asalnya.
+- [x] Proyek baru muncul dengan data baseline lengkap.
+- [x] Tautan dua arah antara proyek dan prospek/estimasi asalnya.
 
 ### F10 — Dashboard Kesehatan Proyek (Fase 2)
 
 **Tujuan:** Melihat kondisi semua proyek aktif secara ringkas.
 
-**Isi:** status per proyek (Hijau/Kuning/Merah), progres terhadap baseline (sprint berjalan vs rencana), realisasi biaya vs anggaran, jumlah risiko tinggi terbuka, blocker aktif, change request menunggu keputusan, dan tenggat terdekat.
+**Isi:** status per proyek (Hijau/Kuning/Merah) beserta alasannya, progres terhadap rencana, sprint berjalan, proyeksi selesai, tenggat terdekat, jumlah risiko tinggi terbuka, blocker aktif, change request menunggu keputusan, dan perubahan scope dari CR. Proyek yang paling bermasalah tampil di atas.
 
-**Aturan bisnis (status otomatis, ambang dapat diubah):**
+**Aturan bisnis (berjalan, ambang tetap):**
 
 | Status | Kondisi (salah satu terpenuhi) |
 |---|---|
-| Merah | Proyeksi keterlambatan > 20%, biaya > 110% anggaran, atau ada risiko tinggi tanpa mitigasi |
-| Kuning | Proyeksi keterlambatan 10–20%, biaya 100–110% anggaran, atau blocker > 2 hari |
+| Merah | Proyeksi selesai mundur > 20% dari durasi rencana, atau ada risiko tinggi tanpa mitigasi |
+| Kuning | Mundur 10–20%, ada fitur/aktivitas terlambat, progres > 15 poin di bawah rencana hari ini, atau ada blocker > 2 hari |
 | Hijau | Tidak ada kondisi di atas |
 
+- Durasi rencana mengikuti **target selesai** (baseline + sprint dari CR yang disetujui), sehingga tambahan scope yang disetujui tidak dihitung sebagai keterlambatan.
+- **Blocker** = item RAID bertipe Isu yang belum selesai.
 - Setiap status Kuning/Merah menampilkan **alasan** yang memicunya.
-- PM dapat mengganti status secara manual dengan wajib menulis alasan.
+- PM dapat menetapkan status manual dengan alasan wajib; tampil sebagai "Ditetapkan PM: …" dan dapat dikembalikan ke otomatis.
+- Rincian keputusan desain ada di 14.1.
+
+**Direncanakan (belum berjalan):**
+- Kondisi biaya: Merah bila realisasi biaya > 110% anggaran, Kuning bila 100–110%. Membutuhkan pencatatan biaya aktual.
+- Ambang status dapat diubah di Pengaturan.
 
 ### F11 — RAID Log (Fase 2)
 
@@ -514,22 +533,25 @@ Sprint pengembangan = 5, ditambah 1 sprint stabilisasi = **6 sprint = 12 minggu 
 | `Role` | id, nama, level, sumber, aktif | — |
 | `RateCard` | id, role_id, rate_bulanan, berlaku_mulai | → Role |
 | `Settings` | parameter default (Bagian F1), termasuk satuan input dan SP_per_jam | — |
-| `FeatureTemplate` | id, nama, kategori, kompleksitas, deskripsi | 1–n `FeatureTemplateEffort` |
+| `Holiday` | tanggal, nama, jenis (libur nasional / cuti bersama) | — (disalin ke estimasi sebagai snapshot) |
+| `FeatureTemplate` | id, nama, kategori, kompleksitas, deskripsi, asumsi | 1–n `FeatureTemplateEffort` |
 | `FeatureTemplateEffort` | template_id, role_id, O, M, P | → FeatureTemplate, Role |
 | `Prospect` | id, nama, klien, kebutuhan, tenggat, budget, status | 1–n Estimate, 1–n StatusHistory |
 | `StatusHistory` | prospect_id, dari, ke, tanggal, catatan | → Prospect |
-| `Estimate` | id, prospect_id, versi, is_final, satuan_input, sp_per_jam, snapshot_settings, snapshot_rates, asumsi, exclusions | 1–n Scenario, 1–n EstimateFeature |
+| `Estimate` | id, prospect_id, versi, is_final, snapshot_settings, snapshot_rates, snapshot_holidays, rencana_mulai, asumsi, exclusions, risiko | 1–n Scenario, 1–n EstimateFeature |
 | `EstimateFeature` | id, estimate_id, nama, modul, prioritas, asumsi | 1–n EstimateEffort |
 | `EstimateEffort` | feature_id, role_id, O, M, P | → EstimateFeature, Role |
 | `Scenario` | id, estimate_id, nama, filter_prioritas, overhead_items | 1–n ScenarioTeam |
 | `ScenarioTeam` | scenario_id, role_id, mp, bulan_keterlibatan | → Scenario, Role |
-| `Project` | id, prospect_id, estimate_id_baseline, tanggal_mulai, status | 1–n Sprint, RaidItem, Decision, ChangeRequest, StatusReport |
+| `Project` | id, prospect_id, estimate_id_baseline, scenario_id_baseline, tanggal_mulai, baseline (JSON beku), status, status_kesehatan_manual, alasan | 1–n Sprint, ProjectFeature, ProjectActivity, RaidItem, Decision, ChangeRequest, StatusReport |
+| `ProjectFeature` | project_id, feature_id **atau** change_request_id, sprint baseline mulai/selesai, sprint rencana mulai/selesai, progres % | → Project, EstimateFeature / ChangeRequest |
+| `ProjectActivity` | project_id, nama, jenis (aktivitas/milestone), tanggal mulai/selesai, selesai, sprint_number | → Project |
 | `Sprint` | project_id, nomor, tanggal mulai/selesai, rencana, realisasi | → Project |
 | `RaidItem` | project_id, tipe, deskripsi, pemilik, dampak, kemungkinan, mitigasi, tgl_tinjau, status | → Project |
-| `Decision` | project_id, tanggal, keputusan, pengambil, alasan, alternatif | → Project |
-| `ChangeRequest` | project_id, deskripsi, effort_delta, sprint_delta, biaya_delta, status | → Project |
-| `StatusReport` | project_id, periode, template, isi, terkirim | → Project |
-| `Actual` | project_id, role_id, kategori_fitur, effort_realisasi | → Project, Role |
+| `Decision` | project_id, nomor, tanggal, keputusan, pengambil, alasan, alternatif, dampak, tautan, membatalkan_id | → Project, Decision (yang dibatalkan) |
+| `ChangeRequest` | project_id, nomor, judul, deskripsi, peminta, tanggal, alasan, effort O/M/P per peran, status, penyetuju, tanggal keputusan, dampak beku (effort, sprint, biaya, harga) | → Project |
+| `StatusReport` | project_id, periode (Senin–Minggu), narasi (pencapaian, kendala, rencana, bantuan), snapshot data saat terkirim, tanggal kirim | → Project |
+| `Actual` | project_id, role_id, kategori_fitur, effort_realisasi *(belum dibuat, F15)* | → Project, Role |
 
 **Prinsip penting:** estimasi menyimpan **snapshot**, bukan referensi hidup, untuk rate dan parameter. Angka yang pernah dipresentasikan ke direksi tidak boleh berubah diam-diam.
 
@@ -545,6 +567,7 @@ Sprint pengembangan = 5, ditambah 1 sprint stabilisasi = **6 sprint = 12 minggu 
 | Bahasa dan format | Antarmuka bahasa Indonesia; format Rupiah dan tanggal Indonesia (26 Nov 2026). |
 | Audit | Perubahan status, finalisasi estimasi, dan keputusan CR tercatat beserta waktunya. |
 | Ekspor | PDF untuk ringkasan direksi dan laporan; CSV/XLSX untuk tabel estimasi. |
+| Privasi AI | Data ke penyedia AI dibatasi, dapat dipratinjau dan disamarkan, fitur dapat dimatikan; rincian di F4. |
 
 ## 10. Rencana Rilis
 
@@ -574,17 +597,96 @@ Sebelum dianggap selesai, MVP diuji dengan **2–3 proyek lama** yang realisasin
 2. Bandingkan hasil estimasi dengan realisasi sebenarnya.
 3. Sesuaikan parameter default (focus factor, contingency) jika selisihnya konsisten.
 
+**Status (v0.4):** ⬜ belum tercatat. Hasil validasi dicatat di sini per proyek uji:
+
+| Proyek uji | Estimasi durasi | Realisasi durasi | Selisih | Estimasi biaya | Realisasi biaya | Selisih | Catatan |
+|---|---|---|---|---|---|---|---|
+| — | — | — | — | — | — | — | — |
+
 ## 13. Pertanyaan Terbuka
 
 | ID | Pertanyaan | Dampak |
 |---|---|---|
-| Q1 | Tech stack dan hosting apa yang akan dipakai? **Usulan tersedia di `tech-stack.md`** (SvelteKit + SQLite di VPS kecil), menunggu konfirmasi. | Arsitektur, biaya operasional |
+| Q1 | Tech stack dan hosting apa yang akan dipakai? **Tech stack diputuskan (v0.3):** SvelteKit + SQLite sesuai `tech-stack.md`, sudah berjalan di lokal. Hosting (spesifikasi VPS, domain, backup) belum diputuskan. | Arsitektur, biaya operasional |
 | ~~Q2~~ | ~~Satuan jam atau story point?~~ **Diputuskan (v0.2):** input dapat berupa story point atau jam; konversi berupa parameter, default 1 jam = 2 SP. | F4, F5, F15 |
-| Q3 | Apakah rate disimpan sebagai biaya perusahaan (CTC) atau rate jual ke klien? | F6, F8 |
+| ~~Q3~~ | ~~CTC atau rate jual?~~ **Diputuskan (v0.3):** rate adalah biaya perusahaan (gaji karyawan); harga jual = biaya + contingency + markup. | F6, F8 |
 | Q4 | Apakah perlu dukungan mata uang selain Rupiah? | F6, F8 |
-| Q5 | Apakah proyek bisa berjalan dengan sistem fixed price dan time & material? Rumus harga keduanya berbeda. | F6 |
+| ~~Q5~~ | ~~Fixed price dan time & material?~~ **Diputuskan (v0.3):** harga utama fixed price; time & material ditampilkan sebagai sudut pandang kedua (total T&M dan rate bulanan tim) di samping fixed price. | F6 |
 | Q6 | Apakah ringkasan direksi cukup PDF, atau perlu format slide? | F8 |
 | Q7 | Apakah UI/UX dan peran lain bisa mulai lebih awal (sprint 0) dan dihitung terpisah dari jalur kritis? | F5 |
+
+## 14. Status Implementasi (per 26 Nov 2026)
+
+Sistem berjalan di lokal (SvelteKit + SQLite), belum dideploy ke server. Tanda: ✅ selesai · 🟡 sebagian · ⬜ belum.
+
+| Fitur | Status | Catatan |
+|---|---|---|
+| F1 Master data | ✅ | Peran, rate card bertanggal, parameter default. **Tambahan:** master kalender libur (libur nasional dan cuti bersama), terisi dari SKB resmi 2026–2027 dan dapat diubah; memengaruhi kapasitas sprint dan tanggal pada estimasi serta proyek. |
+| F2 Pipeline prospek | ✅ | Daftar dan kanban, filter status/klien, pencarian, riwayat status. Prospek dapat dihapus. |
+| F3 Library fitur | ✅ | Template dengan effort default per peran (jam); tambah beberapa sekaligus ke estimasi (disalin, dapat diurungkan); simpan fitur estimasi ke library. Rata-rata realisasi menunggu F15. |
+| F4 Estimasi PERT | ✅ | Input SP atau jam (disimpan dalam jam). **Tambahan:** draf fitur dengan AI (API kompatibel OpenAI; yang dikirim hanya nama proyek, kebutuhan, tujuan, catatan, dan nama peran). **Belum:** kontrol privasi sesuai F4 (pratinjau, samarkan, saklar, log). |
+| F5 Tim dan sprint | ✅ | Bottleneck tersorot, pengingat bahwa penambahan orang tidak linear. **Tambahan:** "Sarankan tim" dan jadwal sprint mengikuti kalender libur. |
+| F6 Biaya dan harga | ✅ | Rate = biaya perusahaan (Q3). Tampilan time & material di samping fixed price (Q5). |
+| F7 Skenario dan versi | 🟡 | Versi, finalisasi, dan kunci versi final berjalan; versi dapat dihapus. **Belum:** beberapa skenario per versi (saat ini satu skenario utama), tabel perbandingan skenario, dan perbandingan antarversi. |
+| F8 Ringkasan direksi | 🟡 | PDF A4 satu halaman, opsi rincian rate. Untuk estimasi yang menjadi baseline proyek, tanggal memakai tanggal mulai proyek. **Belum:** tautan baca-saja (opsional). |
+| F9 Konversi ke proyek | ✅ | Deal (dengan tanggal mulai) membuat proyek, baseline beku, sprint, dan RAID dari asumsi/risiko. **Tambahan:** Gantt aktivitas dan milestone (Kick-off, Sprint N, SIT, UAT, Go-live, dapat ditambah), tabel jadwal dan progres per fitur yang direncanakan otomatis dan dapat digeser. |
+| F10 Dashboard kesehatan | 🟡 | Lihat 14.1. **Belum:** realisasi biaya vs anggaran (biaya aktual belum dicatat) dan ambang status yang dapat diubah (saat ini tetap). |
+| F11 RAID log | ✅ | Matriks risiko 5×5 yang dapat diklik sebagai filter, skor ≥ 15 = tinggi, penanda lewat tanggal tinjau. |
+| F12 Decision log | ✅ | Lihat 14.1. |
+| F13 Change request | ✅ | Lihat 14.1. |
+| F14 Laporan mingguan | ✅ | Lihat 14.1. |
+| F15 Kalibrasi historis | ⬜ | Belum dimulai. |
+| F16 Integrasi | ⬜ | Belum dimulai. |
+
+### 14.1 Keputusan desain Fase 2
+
+- **Status kesehatan (F10).**
+  - Dihitung otomatis dari jadwal dan RAID.
+  - **Merah:** proyeksi selesai mundur > 20% dari durasi rencana, atau ada risiko tinggi tanpa mitigasi.
+  - **Kuning:** mundur 10–20%, ada fitur/aktivitas terlambat, progres > 15 poin di bawah rencana hari ini, atau ada blocker > 2 hari.
+  - **Blocker** = item RAID bertipe Isu yang belum selesai.
+  - Proyeksi selesai memperhitungkan sprint stabilisasi/UAT setelah fitur terakhir, sehingga fitur yang mundur ikut memundurkan akhir proyek.
+  - PM dapat menetapkan status manual dengan alasan wajib. Alasan tersebut tampil di dashboard dan laporan sebagai "Ditetapkan PM: …", dan PM dapat mengembalikannya ke otomatis.
+- **Dashboard (F10).** Halaman Proyek berisi:
+  - ringkasan jumlah Merah/Kuning/Hijau, risiko tinggi, blocker, dan CR menunggu;
+  - per proyek: status dan alasan, progres vs rencana, sprint berjalan, proyeksi selesai, tenggat terdekat, dan perubahan scope dari CR.
+  - Proyek yang paling bermasalah tampil di atas.
+- **Change request (F13).**
+  - Effort diisi O/M/P per peran.
+  - Dampak effort, sprint, biaya, dan harga dihitung dengan mesin estimasi yang sama (baseline + CR yang sudah disetujui, lalu ditambah CR ini) dan dibekukan saat diputuskan. Keputusan bersifat final.
+  - CR yang disetujui masuk jadwal sebagai baris fitur dan menggeser **target selesai** (baseline + sprint CR). Baseline asli tetap disimpan, dan tambahan scope yang disetujui tidak dihitung sebagai keterlambatan.
+  - Karena biaya = tim × waktu, CR kecil yang muat di kapasitas sprint yang ada berdampak Rp0.
+  - **Belum:** CR pengurangan scope.
+- **Decision log (F12).**
+  - Penomoran K-1, K-2, ….
+  - Isi keputusan dapat diperbaiki, tetapi keputusan tidak dapat dihapus.
+  - Pembatalan dilakukan dengan keputusan baru yang merujuk keputusan lama. Satu keputusan hanya dapat dibatalkan sekali.
+- **Laporan mingguan (F14).**
+  - Periode Senin–Minggu, satu laporan per minggu.
+  - Data otomatis: status, progres, aktivitas minggu ini dan depan, keterlambatan, RAID, CR, dan keputusan minggu berjalan. PM menambahkan narasi yang tersimpan otomatis.
+  - Saat ditandai terkirim, data dibekukan dan laporan terkunci.
+  - Cetak A4 dengan template Direksi (ringkas) atau Teknis (rinci).
+- **Aktivitas sprint.** Aktivitas "Sprint N" dicentang otomatis saat semua fitur (termasuk CR) yang dijadwalkan selesai di sprint N mencapai 100%, dan dibatalkan bila progres turun lagi. Sprint tanpa fitur yang berakhir di sana tetap dicentang manual.
+
+### 14.2 Kebutuhan non-fungsional
+
+| Aspek | Status |
+|---|---|
+| Autentikasi | ✅ Login satu pengguna (argon2), sesi 30 hari, pembatasan 5 percobaan gagal per 15 menit. ⬜ 2FA. |
+| Bahasa dan format | ✅ Antarmuka Indonesia, Rupiah, tanggal Indonesia. |
+| Ekspor | ✅ PDF ringkasan direksi dan laporan mingguan. ⬜ CSV/XLSX tabel estimasi. |
+| Backup | ⬜ Belum ada backup otomatis maupun ekspor data penuh. **Mendesak:** data sungguhan sudah ada di lokal. |
+| Privasi AI | 🟡 Data terkirim sudah dibatasi. ⬜ Pratinjau, samarkan identitas, saklar di Pengaturan, dan log pemanggilan. |
+| Keamanan data / HTTPS | ⬜ Bergantung pada deploy (belum). |
+
+### 14.3 Rencana berikutnya
+
+1. **Backup lokal segera**, tidak menunggu deploy: `sqlite3 .backup` harian ke folder yang tersinkron ke cloud, simpan 30 salinan terakhir, lalu uji pemulihan sekali.
+2. Kontrol privasi draf AI (F4).
+3. Validasi MVP dengan 2–3 proyek lama (Bagian 12).
+4. Deploy ke VPS (menunggu Q1: spesifikasi, domain); backup beralih ke skema server (`tech-stack.md` Bagian 10).
+5. F7 lengkap: skenario ganda dan perbandingan versi.
+6. F15 kalibrasi historis, lalu F16 integrasi.
 
 ---
 

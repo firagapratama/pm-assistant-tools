@@ -64,7 +64,23 @@ export const rateCards = sqliteTable(
 /** Satu baris (id = 1): parameter default untuk estimasi baru. */
 export const settings = sqliteTable('settings', {
 	id: integer('id').primaryKey(),
-	values: text('values', { mode: 'json' }).$type<EstimateSettings>().notNull()
+	values: text('values', { mode: 'json' }).$type<EstimateSettings>().notNull(),
+	/** Saklar draf AI (PRD F4); bila mati, tombol AI tidak ditampilkan. */
+	aiEnabled: integer('ai_enabled', { mode: 'boolean' }).notNull().default(true)
+});
+
+/** Log pemanggilan AI (PRD F4). Isi teks tidak pernah disimpan. */
+export const aiCalls = sqliteTable('ai_calls', {
+	id: integer('id').primaryKey(),
+	createdAt: createdAt(),
+	/** Host penyedia, misalnya api.routr.cloud. */
+	provider: text('provider').notNull(),
+	model: text('model').notNull(),
+	chars: integer('chars').notNull(),
+	anonymized: integer('anonymized', { mode: 'boolean' }).notNull(),
+	ok: integer('ok', { mode: 'boolean' }).notNull(),
+	/** Jumlah fitur yang dihasilkan (0 bila gagal). */
+	features: integer('features').notNull().default(0)
 });
 
 /** Kalender libur (libur nasional dan cuti bersama), dipakai untuk menghitung hari kerja per sprint. */
@@ -164,7 +180,9 @@ export const estimateFeatures = sqliteTable('estimate_features', {
 	description: text('description').notNull().default(''),
 	priority: text('priority', { enum: ['must', 'should', 'could'] }).$type<Priority>().notNull().default('must'),
 	assumptions: text('assumptions').notNull().default(''),
-	sortOrder: integer('sort_order').notNull().default(0)
+	sortOrder: integer('sort_order').notNull().default(0),
+	/** Hasil draf AI yang belum ditinjau PM; estimasi tidak bisa final selama masih ada. */
+	aiDraft: integer('ai_draft', { mode: 'boolean' }).notNull().default(false)
 });
 
 /** O/M/P selalu dalam jam; satuan SP hanya tampilan (PRD 7.0). */

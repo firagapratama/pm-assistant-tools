@@ -21,6 +21,8 @@ export const DraftFeatureSchema = v.object({
 	description: text(2000),
 	priority: v.picklist(['must', 'should', 'could']),
 	assumptions: text(2000),
+	/** Hasil draf AI yang belum ditinjau PM (PRD F4). */
+	aiDraft: v.optional(v.boolean()),
 	efforts: v.pipe(
 		v.record(v.pipe(v.string(), v.regex(/^\d+$/)), ThreePointSchema),
 		v.transform((r) => Object.fromEntries(Object.entries(r).map(([k, t]) => [Number(k), t])) as Record<number, v.InferOutput<typeof ThreePointSchema>>)

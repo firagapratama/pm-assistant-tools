@@ -78,6 +78,13 @@
       "when": 1795694309290,
       "tag": "0010_sprint_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795695716858,
+      "tag": "0011_ai_privacy",
+      "breakpoints": true
     }
   ]
 }

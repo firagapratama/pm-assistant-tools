@@ -32,6 +32,8 @@ export function finalizeProblems(draft: EstimateDraft, rates: RateSnapshot[], re
 	const problems: string[] = [];
 	if (draft.features.length === 0) problems.push('Belum ada fitur.');
 	if (draft.features.some((f) => !f.name.trim())) problems.push('Ada fitur yang belum diberi nama.');
+	const aiDrafts = draft.features.filter((f) => f.aiDraft).length;
+	if (aiDrafts) problems.push(`${aiDrafts} fitur draf AI belum ditinjau. Setujui atau ubah dulu.`);
 	if (draft.features.length > 0 && result.totalEffort.e === 0) problems.push('Belum ada effort yang diisi.');
 	for (const id of result.likely.sprint.unstaffedRoleIds) problems.push(`${name(id)} punya effort tetapi belum ada orangnya di Tim.`);
 	for (const id of result.likely.cost.missingRateRoleIds) problems.push(`Rate ${name(id)} belum diisi. Tambahkan di Pengaturan, lalu ambil rate & kalender terbaru.`);

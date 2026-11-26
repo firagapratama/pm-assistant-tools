@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { ArrowDown, ArrowUp, ChevronDown, Copy, ListPlus, Plus, Trash2, TriangleAlert, X } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Check, ChevronDown, Copy, ListPlus, Plus, Trash2, TriangleAlert, X } from '@lucide/svelte';
 	import { pertE, pertSigma, type Priority } from '#lib/calc/pert.ts';
 	import NumInput from '#lib/components/NumInput.svelte';
 	import RangeBand from '#lib/components/RangeBand.svelte';
@@ -136,6 +136,13 @@
 		{/if}
 	</div>
 
+	{#if ed.aiDraftCount > 0}
+		<div class="draf-bar" role="status">
+			<span><span class="draf-ai">Draf AI</span> {ed.aiDraftCount} fitur dari AI belum ditinjau. Periksa angkanya; estimasi tidak bisa ditandai final sebelum semuanya disetujui atau diubah.</span>
+			{#if !ed.locked}<button class="btn kecil" onclick={() => ed.approveAll()}>Setujui semua</button>{/if}
+		</div>
+	{/if}
+
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="tabel-wadah" onkeydown={enterNext}>
 		<table class="fitur">
@@ -165,11 +172,12 @@
 					{@const t = totals(f)}
 					{@const valid = ed.featureValid(f)}
 					{@const isOpen = open === f.key}
-					<tr class="baris" class:terbuka={isOpen}>
+					<tr class="baris" class:terbuka={isOpen} class:ai-draf={f.aiDraft}>
 						<td class="modul">{f.module !== ed.features[i - 1]?.module ? f.module : ''}</td>
 						<td class="nama">
 							<button class="buka" aria-expanded={isOpen} aria-controls="edit-{f.key}" onclick={() => (open = isOpen ? null : f.key)}>
 								<span class:tanpa-nama={!f.name}>{f.name || 'Fitur tanpa nama'}</span>
+								{#if f.aiDraft}<span class="draf-ai">Draf AI</span>{/if}
 								{#if f.priority !== 'must'}<span class="prioritas">{f.priority === 'should' ? 'Should' : 'Could'}</span>{/if}
 								{#if !valid}<span class="peringatan" title="O ≤ M ≤ P belum terpenuhi"><TriangleAlert size={14} strokeWidth={2} aria-label="Ada nilai tidak valid" /></span>{/if}
 							</button>
@@ -197,7 +205,9 @@
 					{#if isOpen}
 						<tr class="panel-ubah" id="edit-{f.key}">
 							<td colspan={colCount}>
-								<div class="fitur-edit">
+								<!-- Mengubah isian apa pun berarti PM sudah meninjau baris draf AI ini. -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div class="fitur-edit" oninput={() => (f.aiDraft = undefined)}>
 									<div class="identitas">
 										<label class="field nama-fitur">
 											<span class="field-label">Nama fitur</span>
@@ -279,6 +289,7 @@
 
 									{#if !ed.locked}
 										<div class="aksi">
+											{#if f.aiDraft}<button class="btn kecil" onclick={() => ed.approve(f)}><Check size={14} strokeWidth={2} aria-hidden="true" /> Setujui</button>{/if}
 											<button class="btn kecil" onclick={() => focusName(ed.duplicate(f.key))}><Copy size={14} strokeWidth={1.75} aria-hidden="true" /> Duplikasi</button>
 											<button class="btn kecil" onclick={() => saveToLibrary(f)} disabled={savingLib === f.key}><BookmarkPlus size={14} strokeWidth={1.75} aria-hidden="true" /> Simpan ke library</button>
 											<button class="btn kecil" onclick={() => ed.move(f.key, -1)} disabled={i === 0}><ArrowUp size={14} strokeWidth={1.75} aria-hidden="true" /> Naik</button>
@@ -314,6 +325,36 @@
 {/if}
 
 <style>
+	.draf-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--jarak-4);
+		margin-bottom: var(--jarak-3);
+		padding: var(--jarak-3) var(--jarak-4);
+		border-radius: var(--radius-kecil);
+		background: var(--nila-tipis);
+		font-size: var(--teks-kecil);
+	}
+	.draf-ai {
+		display: inline-block;
+		margin-left: var(--jarak-2);
+		padding: 0 6px;
+		border-radius: var(--radius-kecil);
+		background: var(--nila-tipis);
+		color: var(--nila);
+		font-size: var(--teks-mini);
+		font-weight: 500;
+		white-space: nowrap;
+	}
+	.draf-bar .draf-ai {
+		margin: 0 var(--jarak-2) 0 0;
+		background: var(--permukaan);
+	}
+	/* Baris draf AI: garis kiri putus-putus (design.md 6.11). */
+	tr.ai-draf > td:first-child {
+		border-left: 2px dashed var(--nila);
+	}
 	.ai-baris {
 		display: flex;
 		flex-wrap: wrap;

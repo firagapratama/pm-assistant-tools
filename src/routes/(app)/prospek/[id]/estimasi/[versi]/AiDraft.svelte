@@ -32,6 +32,29 @@
 	let chosen: boolean[] = $state([]);
 	let includeNotes = $state(true);
 	let controller: AbortController | null = null;
+	/** Pratinjau teks persis yang akan dikirim; PM boleh mengeditnya (PRD F4). */
+	let anonymizeNames = $state(true);
+	let preview: { text: string; provider: string; model: string } | null = $state(null);
+	let previewing = $state(false);
+
+	async function loadPreview() {
+		previewing = true;
+		error = '';
+		try {
+			const res = await fetch(`${page.url.pathname}/ai-draft`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'preview', notes, anonymize: anonymizeNames })
+			});
+			const data = await res.json();
+			if (!res.ok) error = data.message ?? 'Pratinjau gagal dibuat.';
+			else preview = data;
+		} catch {
+			error = 'Tidak dapat menghubungi server.';
+		} finally {
+			previewing = false;
+		}
+	}
 
 	let progress = $state(0);
 
@@ -48,7 +71,7 @@
 			const res = await fetch(`${page.url.pathname}/ai-draft`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ notes }),
+				body: JSON.stringify({ action: 'generate', text: preview?.text ?? '', anonymize: anonymizeNames }),
 				signal: controller.signal
 			});
 			if (!res.ok || !res.body) throw new Error(String(res.status));
@@ -86,6 +109,7 @@
 	function cancel() {
 		controller?.abort();
 		open = false;
+		preview = null;
 	}
 
 	const totalE = (f: DraftFeature) => Object.values(f.efforts).reduce((a, t) => a + pertE(t), 0);
@@ -103,24 +127,23 @@
 
 	function apply(mode: 'append' | 'replace') {
 		if (!draft || picked.length === 0) return;
-		const undo = ed.applyDraft(picked, mode, includeNotes ? draft : undefined);
+		// Masuk sebagai "draf AI": wajib ditinjau sebelum estimasi bisa final.
+		const undo = ed.applyDraft(picked.map((f) => ({ ...f, aiDraft: true })), mode, includeNotes ? draft : undefined);
 		toast(`${picked.length} fitur dari draf AI ${mode === 'replace' ? 'menggantikan fitur lama' : 'ditambahkan'}. Periksa angkanya.`, 'info', {
 			label: 'Urungkan',
 			run: undo
 		});
 		open = false;
 		draft = null;
+		preview = null;
 		notes = '';
 	}
 </script>
 
-{#if !open}
-	<button
-		class="btn"
-		onclick={() => (open = true)}
-		disabled={ed.locked || !ai}
-		title={ai ? undefined : 'Isi AI_API_KEY, AI_BASE_URL, dan MODEL di .env untuk memakai AI'}
-	>
+{#if !ai}
+	<!-- Draf AI dimatikan di Pengaturan atau belum dikonfigurasi: tombol tidak ditampilkan (PRD F4). -->
+{:else if !open}
+	<button class="btn" onclick={() => (open = true)} disabled={ed.locked}>
 		<Sparkles size={16} strokeWidth={1.75} aria-hidden="true" /> {label}
 	</button>
 {:else}
@@ -130,7 +153,7 @@
 			<button class="btn teks kecil" aria-label="Tutup" onclick={cancel}><X size={16} strokeWidth={1.75} /></button>
 		</div>
 
-		{#if !draft}
+		{#if !draft && !preview}
 			<div class="panel-isi isi">
 				<div class="sumber">
 					<span class="field-label">Ringkasan kebutuhan dari prospek</span>
@@ -145,30 +168,46 @@
 					<textarea
 						rows="5"
 						bind:value={notes}
-						disabled={loading}
+						disabled={previewing}
 						placeholder="Tempel notulen rapat, isi RFP, daftar layar, integrasi yang diminta, batasan teknis…"
 					></textarea>
 				</label>
+				<label class="catatan">
+					<input type="checkbox" bind:checked={anonymizeNames} />
+					Samarkan nama klien dan proyek (diganti [Klien] dan [Proyek], dikembalikan di hasil)
+				</label>
+				{#if error}<p class="pesan-error" role="alert">{error}</p>{/if}
+				<div class="aksi">
+					<button class="btn teks" onclick={cancel}>Batal</button>
+					<button class="btn" onclick={loadPreview} disabled={previewing}>{previewing ? 'Menyiapkan…' : 'Lihat teks yang akan dikirim'}</button>
+				</div>
+			</div>
+		{:else if !draft && preview}
+			<div class="panel-isi isi">
 				<p class="field-hint">
-					Yang dikirim ke AI ({ai?.model}): nama proyek, kebutuhan, tujuan bisnis, catatan ini, dan nama peran. Rate, harga,
-					dan kontak klien tidak dikirim.
+					Dikirim ke: <strong>{preview.provider}</strong> · {preview.model}. Teks di bawah dikirim persis seperti ini, bersama aturan format
+					jawaban. Rate, biaya, harga, dan kontak klien tidak pernah dikirim.
 				</p>
+				<label class="field">
+					<span class="field-label">Teks yang dikirim <span class="opsional">· dapat diedit</span></span>
+					<textarea class="pratinjau" rows="12" bind:value={preview.text} disabled={loading}></textarea>
+				</label>
+				{#if anonymizeNames}<p class="field-hint">Nama klien dan proyek disamarkan, juga bila diketik ulang di teks ini.</p>{/if}
 				{#if error}<p class="pesan-error" role="alert">{error}</p>{/if}
 				<div class="aksi">
 					{#if loading}
 						<span class="memuat" aria-live="polite">
 							<LoaderCircle size={16} strokeWidth={2} class="putar" aria-hidden="true" />
-							{progress > 0 ? `${progress} fitur tersusun` : 'AI sedang menganalisis kebutuhan'} · {elapsed} dtk
+							{progress > 0 ? `${progress} fitur tersusun` : 'Menyusun draf…'} · {elapsed} dtk
 						</span>
+						<button class="btn teks" onclick={() => controller?.abort()}>Batalkan</button>
+					{:else}
+						<button class="btn teks" onclick={() => (preview = null)}>Kembali</button>
+						<button class="btn" onclick={generate} disabled={!preview.text.trim()}>{error ? 'Coba lagi' : 'Kirim ke AI'}</button>
 					{/if}
-					<button class="btn teks" onclick={cancel}>Batal</button>
-					<button class="btn" onclick={generate} disabled={loading}>{error ? 'Coba lagi' : 'Buat draf'}</button>
 				</div>
-				<p class="field-hint">
-					Model penalaran bisa butuh 2–4 menit untuk proyek besar. Menekan Batal juga menghentikan permintaan ke AI.
-				</p>
 			</div>
-		{:else}
+		{:else if draft}
 			<div class="panel-isi isi">
 				<p class="ringkas">
 					{draft.features.length} fitur diusulkan. Pilih yang ingin dipakai; semua angka tetap bisa diubah setelahnya.
@@ -206,7 +245,7 @@
 				{/if}
 				<div class="aksi">
 					<span class="total">{picked.length} dipilih · {ed.effortText(pickedHours, 0)}</span>
-					<button class="btn teks" onclick={() => (draft = null)}>Buat ulang</button>
+					<button class="btn teks" onclick={() => (draft = null)}>Kembali ke teks</button>
 					{#if ed.features.length > 0}
 						<button class="btn" onclick={() => apply('replace')} disabled={picked.length === 0}>Ganti semua fitur</button>
 					{/if}
@@ -236,6 +275,10 @@
 	.sumber {
 		display: grid;
 		gap: var(--jarak-1);
+	}
+	.pratinjau {
+		font-family: var(--font-mono, ui-monospace, monospace);
+		font-size: var(--teks-kecil);
 	}
 	.kutipan {
 		margin: 0;

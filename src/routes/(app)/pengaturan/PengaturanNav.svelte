@@ -3,7 +3,8 @@
 
 	const items = [
 		{ href: '/pengaturan', label: 'Peran & parameter' },
-		{ href: '/pengaturan/kalender', label: 'Kalender libur' }
+		{ href: '/pengaturan/kalender', label: 'Kalender libur' },
+		{ href: '/pengaturan/ai', label: 'Draf AI' }
 	];
 </script>
 

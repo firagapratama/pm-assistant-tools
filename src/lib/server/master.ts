@@ -1,10 +1,10 @@
 // Master data (PRD F1): peran, rate card bertanggal berlaku, dan parameter default.
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, ne } from 'drizzle-orm';
 import type { Holiday } from '../calc/calendar.ts';
 import { DEFAULT_SETTINGS, type EstimateSettings } from '../calc/settings.ts';
 import type { Level, Source } from '../labels.ts';
 import type { Db } from './db/index.ts';
-import { holidays, rateCards, roles, settings, type RateSnapshot } from './db/schema.ts';
+import { aiCalls, holidays, rateCards, roles, settings, type RateSnapshot } from './db/schema.ts';
 import { OFFICIAL_HOLIDAYS } from './holidays-id.ts';
 
 export interface RateEntry {
@@ -119,6 +119,27 @@ export function saveSettings(db: Db, values: EstimateSettings) {
 }
 
 /** Salinan peran aktif dan rate yang berlaku pada `date`, untuk disimpan di estimasi baru. */
+// ── Draf AI (PRD F4) ──
+
+export function getAiEnabled(db: Db): boolean {
+	return db.select({ on: settings.aiEnabled }).from(settings).where(eq(settings.id, 1)).get()?.on ?? true;
+}
+
+export function setAiEnabled(db: Db, on: boolean) {
+	db.insert(settings)
+		.values({ id: 1, values: getSettings(db), aiEnabled: on })
+		.onConflictDoUpdate({ target: settings.id, set: { aiEnabled: on } })
+		.run();
+}
+
+export function logAiCall(db: Db, call: typeof aiCalls.$inferInsert) {
+	db.insert(aiCalls).values(call).run();
+}
+
+export function listAiCalls(db: Db, limit = 20) {
+	return db.select().from(aiCalls).orderBy(desc(aiCalls.id)).limit(limit).all();
+}
+
 export function snapshotRates(db: Db, date: string): RateSnapshot[] {
 	return listRoles(db, date)
 		.filter((r) => r.active)

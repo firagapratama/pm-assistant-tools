@@ -120,6 +120,7 @@ function loadDraft(db: Db, row: NonNullable<ReturnType<typeof getRow>>): Estimat
 			description: f.description,
 			priority: f.priority,
 			assumptions: f.assumptions,
+			...(f.aiDraft ? { aiDraft: true } : {}),
 			efforts: Object.fromEntries(
 				efforts.filter((e) => e.featureId === f.id).map((e) => [e.roleId, { o: e.o, m: e.m, p: e.p }])
 			)
@@ -181,7 +182,7 @@ export function saveEstimate(db: Db, estimateId: number, draft: EstimateDraft) {
 		draft.features.forEach((f, i) => {
 			const { id } = tx
 				.insert(estimateFeatures)
-				.values({ estimateId, module: f.module, name: f.name, description: f.description, priority: f.priority, assumptions: f.assumptions, sortOrder: i })
+				.values({ estimateId, module: f.module, name: f.name, description: f.description, priority: f.priority, assumptions: f.assumptions, aiDraft: f.aiDraft ?? false, sortOrder: i })
 				.returning({ id: estimateFeatures.id })
 				.get();
 			const rows = Object.entries(f.efforts)

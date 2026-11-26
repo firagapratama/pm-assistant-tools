@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AiDraftError, buildMessages, extractJson, generateDraft, normalizeDraft, setRetryDelays } from './ai-draft.ts';
+import { AiDraftError, anonymize, buildMessages, buildUserText, extractJson, generateDraft, normalizeDraft, restoreNames, setIdleTimeout, setRetryDelays } from './ai-draft.ts';
 
 setRetryDelays([0, 0]);
 
@@ -192,5 +192,48 @@ describe('memanggil layanan', () => {
 		const pending = generateDraft(input, config, { signal: c.signal });
 		c.abort();
 		await expect(pending).rejects.toThrow('Dibatalkan.');
+	});
+});
+
+describe('privasi', () => {
+	const names = { project: 'Aplikasi Kasir Toko Maju', client: 'Toko Maju' };
+
+	it('menyamarkan nama proyek dan klien (terpanjang dulu, tanpa peduli huruf besar)', () => {
+		expect(anonymize('Proyek Aplikasi Kasir Toko Maju untuk TOKO MAJU (cabang toko maju)', names)).toBe('Proyek [Proyek] untuk [Klien] (cabang [Klien])');
+		expect(anonymize('Toko (Maju)?', { project: 'X', client: 'Toko (Maju)?' })).toBe('[Klien]');
+		expect(anonymize('PT A', { project: '', client: 'A' })).toBe('PT A'); // nama terlalu pendek tidak disamarkan
+	});
+
+	it('mengembalikan nama asli di hasil AI', () => {
+		const r = restoreNames(
+			{ features: [{ module: '[Klien]', name: 'Laporan [Proyek]', description: '', priority: 'must', assumptions: 'Data dari [Klien]', efforts: {} }], assumptions: ['[Klien] menyediakan API'], exclusions: [], risks: [] },
+			names
+		);
+		expect(r.features[0]).toMatchObject({ module: 'Toko Maju', name: 'Laporan Aplikasi Kasir Toko Maju', assumptions: 'Data dari Toko Maju' });
+		expect(r.assumptions).toEqual(['Toko Maju menyediakan API']);
+	});
+
+	it('teks pratinjau yang diedit PM dikirim apa adanya; tanpa rate atau harga', async () => {
+		const text = buildUserText(input);
+		expect(text).toContain('Harus bisa QRIS');
+		expect(text).not.toMatch(/rate|harga|Rp/i);
+		const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: '{"features":[{"name":"Kasir","efforts":[]}]}' } }] })}\n\ndata: [DONE]\n\n`;
+		vi.stubGlobal('fetch', vi.fn(async () => new Response(sse, { status: 200 })));
+		await generateDraft(input, config, { userText: 'Teks yang sudah diedit PM' });
+		const body = JSON.parse((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+		expect(body.messages[1]).toEqual({ role: 'user', content: 'Teks yang sudah diedit PM' });
+		vi.unstubAllGlobals();
+	});
+
+	it('berhenti bila AI diam lebih dari batas waktu, tanpa mencoba ulang', async () => {
+		setIdleTimeout(50);
+		const fetchMock = vi.fn(async () => new Response(new ReadableStream({ start() {} }), { status: 200 }));
+		vi.stubGlobal('fetch', fetchMock);
+		await expect(generateDraft(input, config)).rejects.toThrow(/tidak merespons dalam 0 detik/);
+		vi.stubGlobal('fetch', vi.fn((_u: string, init: RequestInit) => new Promise((_, reject) => init.signal!.addEventListener('abort', () => reject(init.signal!.reason)))));
+		await expect(generateDraft(input, config)).rejects.toThrow(/tidak merespons/);
+		expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+		setIdleTimeout(30_000);
+		vi.unstubAllGlobals();
 	});
 });

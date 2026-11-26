@@ -1,6 +1,7 @@
 // Draf estimasi dengan AI: kebutuhan prospek → daftar fitur dengan O/M/P per peran.
 // Memakai endpoint chat completions yang kompatibel OpenAI (dikonfigurasi lewat .env).
-// Yang dikirim hanya teks kebutuhan dan nama peran; rate, harga, dan kontak klien tidak pernah dikirim.
+// Yang dikirim hanya teks kebutuhan dan nama peran; rate, harga, dan kontak klien tidak pernah dikirim (PRD F4).
+// PM melihat dan boleh mengedit teks persis yang dikirim (`userText`), dan dapat menyamarkan nama klien/proyek.
 import * as v from 'valibot';
 import type { DraftFeature } from '../validation/estimate.ts';
 
@@ -36,6 +37,33 @@ const MAX_HOURS = 2000;
 /** Jeda sebelum mencoba ulang koneksi yang gagal (maksimal 3 percobaan); dapat diubah untuk tes. */
 let RETRY_DELAYS_MS = [2000, 5000];
 export const setRetryDelays = (ms: number[]) => (RETRY_DELAYS_MS = ms);
+/** Batas diam: bila AI tidak mengirim apa pun selama ini, permintaan dihentikan (tech-stack 4.3). */
+let IDLE_MS = 30_000;
+export const setIdleTimeout = (ms: number) => (IDLE_MS = ms);
+
+// ── Penyamaran identitas ──
+const PLACEHOLDER = { project: '[Proyek]', client: '[Klien]' } as const;
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Mengganti nama proyek dan klien dengan penanda. Nama terpanjang lebih dulu (nama proyek sering memuat nama klien). */
+export function anonymize(text: string, names: { project: string; client: string }): string {
+	const pairs = (Object.keys(PLACEHOLDER) as (keyof typeof PLACEHOLDER)[])
+		.map((k) => [names[k].trim(), PLACEHOLDER[k]] as const)
+		.filter(([name]) => name.length >= 3)
+		.sort((a, b) => b[0].length - a[0].length);
+	return pairs.reduce((t, [name, mark]) => t.replace(new RegExp(escape(name), 'gi'), mark), text);
+}
+
+/** Mengembalikan nama asli di hasil AI bila penanda muncul. */
+export function restoreNames(result: AiDraftResult, names: { project: string; client: string }): AiDraftResult {
+	const put = (t: string) => t.replaceAll(PLACEHOLDER.project, names.project || PLACEHOLDER.project).replaceAll(PLACEHOLDER.client, names.client || PLACEHOLDER.client);
+	return {
+		features: result.features.map((f) => ({ ...f, module: put(f.module), name: put(f.name), description: put(f.description), assumptions: put(f.assumptions) })),
+		assumptions: result.assumptions.map(put),
+		exclusions: result.exclusions.map(put),
+		risks: result.risks.map(put)
+	};
+}
 
 const ResponseSchema = v.object({
 	features: v.array(
@@ -56,8 +84,7 @@ const ResponseSchema = v.object({
 	risks: v.optional(v.array(v.string()), [])
 });
 
-export function buildMessages(input: AiDraftInput) {
-	const roleList = input.roles.map((r) => `- ${r.id}: ${r.name}`).join('\n');
+export function buildMessages(input: AiDraftInput, userText = buildUserText(input)) {
 	const system = `Kamu adalah project manager software senior di Indonesia yang menyusun estimasi pra-proyek.
 Pecah kebutuhan menjadi fitur yang dapat diestimasi, lalu beri estimasi tiga titik (PERT) dalam JAM per peran.
 
@@ -76,7 +103,16 @@ Aturan:
 Jawab HANYA dengan JSON valid berbentuk:
 {"features":[{"module":"string","name":"string","description":"string","priority":"must|should|could","assumptions":"string","efforts":[{"roleId":1,"o":4,"m":6,"p":10}]}],"assumptions":["string"],"exclusions":["string"],"risks":["string"]}`;
 
-	const user = [
+	return [
+		{ role: 'system' as const, content: system },
+		{ role: 'user' as const, content: userText }
+	];
+}
+
+/** Teks permintaan yang ditampilkan ke PM di pratinjau dan dikirim apa adanya (setelah diedit). */
+export function buildUserText(input: AiDraftInput): string {
+	const roleList = input.roles.map((r) => `- ${r.id}: ${r.name}`).join('\n');
+	return [
 		`Nama proyek: ${input.projectName}`,
 		`Peran yang tersedia (roleId: nama):\n${roleList}`,
 		input.needs.trim() && `Ringkasan kebutuhan:\n${input.needs.trim()}`,
@@ -87,11 +123,6 @@ Jawab HANYA dengan JSON valid berbentuk:
 	]
 		.filter(Boolean)
 		.join('\n\n');
-
-	return [
-		{ role: 'system' as const, content: system },
-		{ role: 'user' as const, content: user }
-	];
 }
 
 /** Mengambil objek JSON dari teks jawaban model (bisa terbungkus ```json ... ```). */
@@ -164,7 +195,17 @@ async function readStream(
 	let streamError: string | undefined;
 	let features = 0;
 	for (;;) {
-		const { value, done } = await reader.read();
+		let idle: ReturnType<typeof setTimeout> | undefined;
+		const { value, done } = await Promise.race([
+			reader.read(),
+			new Promise<never>((_, reject) => {
+				idle = setTimeout(() => {
+					// Tolak dulu, baru batalkan aliran: pembatalan menyelesaikan read() yang menunggu.
+					reject(new AiDraftError(`AI tidak merespons dalam ${Math.round(IDLE_MS / 1000)} detik. Tidak ada yang tersimpan; coba lagi atau isi manual.`));
+					reader.cancel().catch(() => {});
+				}, IDLE_MS);
+			})
+		]).finally(() => clearTimeout(idle));
 		if (done) break;
 		buffer += value;
 		const lines = buffer.split('\n');
@@ -201,24 +242,24 @@ async function readStream(
 export async function generateDraft(
 	input: AiDraftInput,
 	config: AiConfig,
-	opts: { signal?: AbortSignal; onProgress?: DraftProgress } = {}
+	opts: { signal?: AbortSignal; onProgress?: DraftProgress; userText?: string } = {}
 ): Promise<AiDraftResult> {
 	// Model penalaran bisa butuh beberapa menit untuk estimasi besar; batas total 10 menit.
 	const signal = AbortSignal.any([opts.signal ?? new AbortController().signal, AbortSignal.timeout(600_000)]);
 	const request = () =>
-		fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+		fetchWithin(IDLE_MS, signal, (s) => fetch(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
 			method: 'POST',
 			headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				model: config.model,
-				messages: buildMessages(input),
+				messages: buildMessages(input, opts.userText),
 				response_format: { type: 'json_object' },
 				temperature: 0.2,
 				max_tokens: 12000,
 				stream: true
 			}),
-			signal
-		});
+			signal: s
+		}));
 
 	/** Gagal tersambung (DNS, koneksi putus) belum ditagih, jadi dicoba ulang dengan jeda bertambah. */
 	async function connect(): Promise<Response> {
@@ -226,7 +267,7 @@ export async function generateDraft(
 			try {
 				return await request();
 			} catch (e) {
-				if (signal.aborted || attempt >= RETRY_DELAYS_MS.length) throw abortError(e, opts.signal);
+				if (e instanceof AiDraftError || signal.aborted || attempt >= RETRY_DELAYS_MS.length) throw abortError(e, opts.signal);
 				console.warn(`AI: koneksi gagal (${describeNetworkError(e)}), mencoba ulang`);
 				await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
 			}
@@ -273,6 +314,17 @@ export async function generateDraft(
 			}
 			throw e;
 		}
+	}
+}
+
+/** fetch yang gagal bila header jawaban tidak datang dalam `ms` (koneksi menggantung). */
+async function fetchWithin(ms: number, parent: AbortSignal, run: (s: AbortSignal) => Promise<Response>) {
+	const timer = AbortSignal.timeout(ms);
+	try {
+		return await run(AbortSignal.any([parent, timer]));
+	} catch (e) {
+		if (timer.aborted && !parent.aborted) throw new AiDraftError(`AI tidak merespons dalam ${Math.round(ms / 1000)} detik. Tidak ada yang tersimpan; coba lagi atau isi manual.`);
+		throw e;
 	}
 }
 

@@ -1,10 +1,10 @@
 # Design — PM Workspace
 
-**Panduan visual dan interaksi.** Pendamping `PRD-PM-Workspace.md` (v0.2).
+**Panduan visual dan interaksi.** Pendamping `PRD-PM-Workspace.md` (v0.4) dan `tech-stack.md` (v0.2).
 
 | Atribut | Keterangan |
 |---|---|
-| Versi | 0.2 (Draft) |
+| Versi | 0.3 |
 | Tanggal | 26 November 2026 |
 | Cakupan | Fase 1 (F1–F9) secara detail; Fase 2–3 mengikuti prinsip yang sama |
 
@@ -14,6 +14,7 @@
 |---|---|
 | 0.1 | Draft awal. |
 | 0.2 | D1–D3 diputuskan: tanpa logo dan identitas perusahaan (proyek pribadi, cukup wordmark teks); hanya mode terang, tanpa mode gelap dan tanpa pengganti tema. Bagian mode gelap dihapus dan bagian 2 dinomori ulang; bagian kontras (2.3), 5.1, 5.4, 11, dan 13 disesuaikan. |
+| 0.3 | Diselaraskan dengan sistem yang berjalan (PRD v0.4): tata letak dashboard dan halaman proyek (5.5, 5.6); komponen Gantt, matriks risiko, jadwal per fitur, status manual, draf AI, keadaan terkunci, dan laporan mingguan cetak (6.7–6.13). |
 
 ---
 
@@ -274,6 +275,39 @@ Kolom kanban tanpa latar kartu tebal: setiap item dipisahkan garis tipis, dengan
 
 ---
 
+### 5.5 Dashboard Proyek
+
+```
+Proyek
+2 Merah · 1 Kuning · 4 Hijau      3 risiko tinggi · 2 blocker · 1 CR menunggu
+──────────────────────────────────────────────────────────────────────────────
+● Merah   CRM Internal                          Sprint 5/8   Proyeksi 14 Feb
+          Proyeksi mundur 24% dari rencana       ▓▓▓▓▓▓░░░░│░░  52% (rencana 61%)
+──────────────────────────────────────────────────────────────────────────────
+● Kuning  Portal Vendor PT Sinar                Sprint 3/6   Proyeksi 20 Jan
+          Ditetapkan PM: vendor API belum siap   ▓▓▓▓░░│░░░░░  38% (rencana 45%)
+──────────────────────────────────────────────────────────────────────────────
+● Hijau   Aplikasi Kasir Toko Maju              Sprint 2/6   Sesuai rencana
+          —                                      ▓▓▓│░░░░░░░░  30% (rencana 28%)
+```
+
+- Ringkasan angka di baris paling atas, berupa teks biasa, bukan kartu metrik.
+- Satu baris per proyek, diurutkan dari yang paling bermasalah. Alasan status selalu tampil di baris kedua.
+- Bilah progres: isi `--nila`, latar `--nila-tipis`, garis vertikal `│` 1,5px `--tinta` sebagai posisi rencana hari ini. Jarak antara isi dan garis langsung menunjukkan tertinggal atau di depan.
+- Klik baris membuka halaman proyek.
+
+### 5.6 Halaman Proyek
+
+```
+Aplikasi Kasir Toko Maju                     ● Hijau      [Buat laporan minggu ini]
+Mulai 5 Jan 2026 · Target selesai 30 Mar 2026 · dari Estimasi v2 ◆
+[Ringkasan] [Jadwal] [RAID] [Keputusan] [Change request] [Laporan]
+```
+
+- Tab berupa teks dengan garis bawah 2px `--nila` pada tab aktif, tanpa latar blok.
+- Baris kedua kop selalu menautkan kembali ke estimasi asal (baseline).
+- Satu tombol primer sesuai konteks tab (misalnya "Tambah risiko" di tab RAID).
+
 ## 6. Komponen
 
 ### 6.1 Tombol
@@ -327,6 +361,128 @@ Label `--teks-kecil` `--tinta-2` di atas, angka `--teks-angka-besar`, keterangan
 - Untuk aksi yang bisa dibatalkan, toast memuat tombol "Urungkan".
 
 ---
+
+### 6.7 Gantt Aktivitas dan Fitur
+
+```
+                    Sprint 1     Sprint 2  ▒▒ Sprint 3     Sprint 4
+                    5–16 Jan     19–30 Jan ▒▒ 2–13 Feb     16–27 Feb
+                                         ┊ Hari ini
+◆ Kick-off          ◆                    ┊
+Login               ████████▓▓           ┊
+Kasir               ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┊╌╌╌╌╌┐
+                    ████████████▓▓▓▓▓▓▓▓▓┊▓▓▓▓▓▓▓▓▓▓▓▓      +1 sprint
+CR-2 Diskon member                       ┊     ▓▓▓▓▓▓▓▓
+◆ UAT                                    ┊                  ◆
+```
+
+| Elemen | Gaya |
+|---|---|
+| Bar rencana | Latar `--nila-sedang`, tinggi 10px, radius 3px |
+| Progres | Bagian bar yang selesai diisi `--nila` |
+| Baseline | Garis luar putus-putus 1px `--tinta-2`, hanya tampil jika rencana bergeser dari baseline |
+| Bergeser / terlambat | Label kecil "+1 sprint" berwarna `--waspada` di ujung bar; bar tetap nila |
+| Milestone | Belah ketupat ◆ 10px `--nila`; terisi bila selesai, garis luar bila belum |
+| Baris CR | Label `CR-n` di depan nama, dengan `--teks-mini` dan `--tinta-2` |
+| Hari ini | Garis vertikal putus-putus 1px `--tinta` dengan label "Hari ini" di atas |
+| Libur | Kolom hari libur diarsir tipis `--garis`; tooltip menampilkan nama libur |
+| Batas sprint | Garis vertikal 1px `--garis`; label sprint dan rentang tanggal di header |
+
+- Kolom nama menempel (sticky) di kiri; area waktu bergulir horizontal di dalam wadahnya sendiri.
+- Tidak ada animasi bar. Saat jadwal digeser, bar langsung berpindah.
+- Untuk dicetak, bar diberi pola: rencana polos, progres solid, baseline garis putus-putus, sehingga tetap terbaca hitam-putih.
+
+### 6.8 Tabel Jadwal dan Progres per Fitur
+
+| Kolom | Isi |
+|---|---|
+| Fitur | Nama; baris CR diberi label `CR-n` |
+| Baseline | Sprint mulai–selesai, `--tinta-2` |
+| Rencana | Sprint mulai–selesai dengan tombol `−` / `+` untuk menggeser per sprint (lebih andal daripada seret, terutama di layar sentuh) |
+| Selisih | Kosong bila sama; "+1 sprint" `--waspada` bila mundur |
+| Progres | Input persen (langkah 10) + bilah 4px `--nila` |
+
+### 6.9 Matriks Risiko 5×5
+
+```
+            Kemungkinan →
+            1     2     3     4     5
+Dampak 5 │     │     │  1  │     │  2  │
+       4 │     │     │     │  1  │     │
+       3 │     │  2  │     │     │     │
+       2 │  1  │     │  3  │     │     │
+       1 │     │     │     │     │     │
+```
+
+| Skor (dampak × kemungkinan) | Latar sel |
+|---|---|
+| 1–7 (rendah) | `--permukaan`, border `--garis` |
+| 8–14 (sedang) | `--waspada-tipis` |
+| ≥ 15 (tinggi) | `--kritis-tipis` |
+
+- Sel berisi jumlah risiko (tabular, tebal); sel kosong tidak berisi angka.
+- Klik sel menyaring daftar RAID di bawahnya; sel aktif diberi garis luar 2px `--nila`. Klik lagi untuk menghapus filter.
+- Ukuran sel 44 × 44px agar mudah diklik.
+
+### 6.10 Status Manual
+
+```
+● Kuning · Ditetapkan PM
+Ditetapkan PM: vendor API belum siap, menunggu konfirmasi 2 Des.
+[Kembalikan ke otomatis]
+```
+
+- Badge status ditambah teks "· Ditetapkan PM" dalam `--tinta-2`, agar terbedakan dari status otomatis.
+- Alasan selalu tampil penuh di bawah badge pada halaman proyek, dan satu baris di dashboard.
+
+### 6.11 Draf AI
+
+**Pratinjau sebelum kirim (modal):**
+
+```
+Susun draf fitur dengan AI
+Dikirim ke: [penyedia] · [model]
+
+┌──────────────────────────────────────────────┐
+│ Proyek: [Proyek]                             │
+│ Kebutuhan: aplikasi kasir dengan ...         │  ← dapat diedit
+│ Peran: Backend, Frontend, QA, UI/UX          │
+└──────────────────────────────────────────────┘
+[✓] Samarkan nama klien dan proyek
+Rate, biaya, dan harga tidak pernah dikirim.
+
+                              [Batal]  [Kirim ke AI]
+```
+
+**Hasil di tabel estimasi:**
+
+```
+│ Draf AI │ Riwayat transaksi    12   8   4   ▬    [Setujui]
+│ Draf AI │ Cetak struk           6   6   2   ▬    [Setujui]
+                                   [Setujui semua]  [Buang semua draf]
+```
+
+- Baris draf diberi garis kiri putus-putus 2px `--nila` dan label "Draf AI" (`--teks-mini`, latar `--nila-tipis`).
+- Baris draf ikut dihitung di panel ringkasan, tetapi panel menampilkan catatan "Termasuk 6 fitur draf AI yang belum ditinjau".
+- Estimasi tidak dapat ditandai final selama masih ada draf AI.
+- Saat menunggu: teks "Menyusun draf…" dengan tombol "Batalkan", tanpa animasi berlebihan.
+- Pesan gagal: "AI tidak merespons dalam 30 detik. Tidak ada yang tersimpan; coba lagi atau isi manual."
+
+### 6.12 Keadaan Terkunci
+
+Berlaku untuk estimasi final, baseline proyek, keputusan CR, laporan terkirim, dan keputusan yang sudah dibatalkan.
+
+- Nilai ditampilkan sebagai teks biasa, bukan input yang dinonaktifkan (abu-abu), agar tetap mudah dibaca dan dicetak.
+- Kop menampilkan badge netral: "◆ Final", "Terkirim · 24 Nov 2026", "Disetujui · 20 Nov 2026", atau "Dibatalkan oleh K-7".
+- Aksi yang masih mungkin ditampilkan jelas, misalnya "Buat versi baru" atau "Buat keputusan pembatal".
+- Penomoran `K-n` dan `CR-n` ditulis tabular dalam `--tinta-2`, dan selalu berupa tautan ke itemnya.
+
+### 6.13 Laporan Mingguan (Cetak)
+
+- Aturan cetak sama dengan ringkasan direksi (5.4): A4, margin 18mm, terbaca hitam-putih.
+- **Template Direksi:** satu halaman: status dan alasan, progres vs rencana, proyeksi selesai, tiga risiko teratas, CR dan keputusan minggu ini, bantuan yang dibutuhkan.
+- **Template Teknis:** boleh lebih dari satu halaman; kop (nama proyek, periode, halaman n/m) diulang di setiap halaman; tabel tidak terpotong di tengah baris.
+- Narasi PM dicetak sebagai paragraf biasa, bukan kotak berbingkai.
 
 ## 7. Format Data
 
@@ -457,6 +613,8 @@ Daftar ini membantu menjaga kesan minimalis tetap konsisten seiring bertambahnya
 - Tidak ada warna status untuk hal yang bukan status.
 - Tidak ada label huruf kapital semua atau label kecil berlebih di atas setiap judul.
 - Tidak ada animasi yang tidak dipicu oleh aksi pengguna.
+- Tidak ada kartu metrik besar di dashboard; angka ringkasan cukup berupa satu baris teks.
+- Warna status tidak dipakai untuk bar Gantt; keterlambatan cukup ditandai label.
 
 ## 13. Keputusan Desain
 

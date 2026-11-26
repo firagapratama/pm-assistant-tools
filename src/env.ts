@@ -6,5 +6,6 @@ const optional = (value: string | undefined) => (value?.trim() ? value.trim() : 
 export const variables = defineEnvVars({
 	AI_API_KEY: { schema: optional, description: 'API key penyedia model (endpoint kompatibel OpenAI).' },
 	AI_BASE_URL: { schema: optional, description: 'Base URL endpoint chat completions, misalnya https://api.routr.cloud/v1.' },
-	MODEL: { schema: optional, description: 'ID model untuk draf estimasi AI.' }
+	AI_MODEL: { schema: optional, description: 'ID model untuk draf estimasi AI.' },
+	MODEL: { schema: optional, description: 'Nama lama untuk AI_MODEL; tetap dibaca bila AI_MODEL kosong.' }
 });

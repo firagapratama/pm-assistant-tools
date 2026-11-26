@@ -33,12 +33,14 @@ Isi di `.env` (tidak masuk git):
 ```
 AI_API_KEY=...
 AI_BASE_URL=https://.../v1   # endpoint chat completions kompatibel OpenAI
-MODEL=...
+AI_MODEL=...                 # nama lama MODEL tetap dibaca
 ```
 
 `pnpm dev` membaca `.env` otomatis. Build produksi tidak: jalankan dengan `node --env-file=.env build/index.js`.
-Yang dikirim ke AI hanya nama proyek, kebutuhan, tujuan bisnis, catatan tambahan, dan nama peran; rate, harga, dan
-kontak klien tidak pernah dikirim.
+
+Privasi (PRD F4): yang dikirim hanya nama proyek, kebutuhan, tujuan bisnis, catatan, dan nama peran. PM melihat dan boleh
+mengedit teks persisnya sebelum dikirim, dan dapat menyamarkan nama klien/proyek. Hasil masuk sebagai "Draf AI" yang
+wajib ditinjau sebelum estimasi final. Saklar dan log pemanggilan (tanpa isi teks) ada di Pengaturan → Draf AI.
 
 ## Struktur
 
