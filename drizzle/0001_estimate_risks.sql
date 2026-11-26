@@ -1,0 +1,1 @@
+ALTER TABLE `estimates` ADD `risks` text DEFAULT '' NOT NULL;

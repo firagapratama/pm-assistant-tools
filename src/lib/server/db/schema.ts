@@ -1,0 +1,271 @@
+// Skema PRD bagian 8 (Fase 1 + kebutuhan F9) dan tabel autentikasi.
+// Rupiah = integer, persentase = basis poin, effort = jam (real).
+import { sql } from 'drizzle-orm';
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type { EstimateSettings, Holiday, OverheadItem, Priority } from '../../calc';
+import { PROSPECT_STATUSES } from '../../labels.ts';
+import type { ProjectBaseline } from '../../project.ts';
+
+const createdAt = () =>
+	integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`);
+
+// ── Autentikasi ────────────────────────────────────────────────
+
+export const users = sqliteTable('users', {
+	id: integer('id').primaryKey(),
+	username: text('username').notNull().unique(),
+	passwordHash: text('password_hash').notNull(),
+	createdAt: createdAt()
+});
+
+export const sessions = sqliteTable('sessions', {
+	/** SHA-256 dari token cookie; token mentah tidak pernah disimpan. */
+	id: text('id').primaryKey(),
+	userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+	expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull()
+});
+
+export const loginAttempts = sqliteTable(
+	'login_attempts',
+	{
+		id: integer('id').primaryKey(),
+		ip: text('ip').notNull(),
+		success: integer('success', { mode: 'boolean' }).notNull(),
+		createdAt: createdAt()
+	},
+	(t) => [index('login_attempts_ip_time').on(t.ip, t.createdAt)]
+);
+
+// ── F1 Master data ─────────────────────────────────────────────
+
+export const roles = sqliteTable('roles', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	level: text('level', { enum: ['junior', 'mid', 'senior'] }),
+	source: text('source', { enum: ['internal', 'vendor'] }).notNull().default('internal'),
+	active: integer('active', { mode: 'boolean' }).notNull().default(true),
+	sortOrder: integer('sort_order').notNull().default(0)
+});
+
+export const rateCards = sqliteTable(
+	'rate_cards',
+	{
+		id: integer('id').primaryKey(),
+		roleId: integer('role_id').notNull().references(() => roles.id),
+		monthlyRate: integer('monthly_rate').notNull(),
+		/** YYYY-MM-DD */
+		effectiveFrom: text('effective_from').notNull()
+	},
+	(t) => [uniqueIndex('rate_cards_role_date').on(t.roleId, t.effectiveFrom)]
+);
+
+/** Satu baris (id = 1): parameter default untuk estimasi baru. */
+export const settings = sqliteTable('settings', {
+	id: integer('id').primaryKey(),
+	values: text('values', { mode: 'json' }).$type<EstimateSettings>().notNull()
+});
+
+/** Kalender libur (libur nasional dan cuti bersama), dipakai untuk menghitung hari kerja per sprint. */
+export const holidays = sqliteTable('holidays', {
+	id: integer('id').primaryKey(),
+	/** YYYY-MM-DD; satu tanggal satu entri. */
+	date: text('date').notNull().unique(),
+	name: text('name').notNull(),
+	type: text('type', { enum: ['nasional', 'cuti_bersama'] }).notNull()
+});
+
+// ── F3 Library fitur ───────────────────────────────────────────
+
+export const featureTemplates = sqliteTable('feature_templates', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	category: text('category').notNull(),
+	complexity: text('complexity', { enum: ['rendah', 'sedang', 'tinggi'] }).notNull().default('sedang'),
+	description: text('description').notNull().default(''),
+	assumptions: text('assumptions').notNull().default('')
+});
+
+export const featureTemplateEfforts = sqliteTable(
+	'feature_template_efforts',
+	{
+		templateId: integer('template_id').notNull().references(() => featureTemplates.id, { onDelete: 'cascade' }),
+		roleId: integer('role_id').notNull().references(() => roles.id),
+		o: real('o').notNull(),
+		m: real('m').notNull(),
+		p: real('p').notNull()
+	},
+	(t) => [uniqueIndex('feature_template_efforts_pk').on(t.templateId, t.roleId)]
+);
+
+// ── F2 Prospek ─────────────────────────────────────────────────
+
+
+export const prospects = sqliteTable('prospects', {
+	id: integer('id').primaryKey(),
+	name: text('name').notNull(),
+	client: text('client').notNull().default(''),
+	contact: text('contact').notNull().default(''),
+	needs: text('needs').notNull().default(''),
+	businessGoal: text('business_goal').notNull().default(''),
+	/** YYYY-MM-DD */
+	deadline: text('deadline'),
+	budget: integer('budget'),
+	status: text('status', { enum: PROSPECT_STATUSES }).notNull().default('prospek'),
+	notes: text('notes').notNull().default(''),
+	cancelReason: text('cancel_reason'),
+	createdAt: createdAt()
+});
+
+export const statusHistory = sqliteTable('status_history', {
+	id: integer('id').primaryKey(),
+	prospectId: integer('prospect_id').notNull().references(() => prospects.id, { onDelete: 'cascade' }),
+	from: text('from', { enum: PROSPECT_STATUSES }),
+	to: text('to', { enum: PROSPECT_STATUSES }).notNull(),
+	note: text('note').notNull().default(''),
+	createdAt: createdAt()
+});
+
+// ── F4–F7 Estimasi ─────────────────────────────────────────────
+
+/** Salinan peran + rate saat estimasi dibuat, agar angka lama tidak berubah diam-diam. */
+export type { RateSnapshot } from '../../estimate.ts';
+import type { RateSnapshot } from '../../estimate.ts';
+
+export const estimates = sqliteTable(
+	'estimates',
+	{
+		id: integer('id').primaryKey(),
+		prospectId: integer('prospect_id').notNull().references(() => prospects.id, { onDelete: 'cascade' }),
+		version: integer('version').notNull(),
+		isFinal: integer('is_final', { mode: 'boolean' }).notNull().default(false),
+		finalizedAt: integer('finalized_at', { mode: 'timestamp' }),
+		settings: text('snapshot_settings', { mode: 'json' }).$type<EstimateSettings>().notNull(),
+		rates: text('snapshot_rates', { mode: 'json' }).$type<RateSnapshot[]>().notNull(),
+		assumptions: text('assumptions').notNull().default(''),
+		exclusions: text('exclusions').notNull().default(''),
+		/** Risiko utama, satu per baris; masuk ke ringkasan direksi dan RAID log saat deal. */
+		risks: text('risks').notNull().default(''),
+		/** Rencana tanggal mulai (YYYY-MM-DD); bila diisi, libur mengurangi kapasitas sprint. */
+		plannedStart: text('planned_start'),
+		/** Salinan kalender libur saat estimasi dibuat/diperbarui, agar angka tidak berubah diam-diam. */
+		holidays: text('snapshot_holidays', { mode: 'json' }).$type<Holiday[]>().notNull().default(sql`'[]'`),
+		createdAt: createdAt()
+	},
+	(t) => [uniqueIndex('estimates_prospect_version').on(t.prospectId, t.version)]
+);
+
+export const estimateFeatures = sqliteTable('estimate_features', {
+	id: integer('id').primaryKey(),
+	estimateId: integer('estimate_id').notNull().references(() => estimates.id, { onDelete: 'cascade' }),
+	module: text('module').notNull().default(''),
+	name: text('name').notNull(),
+	description: text('description').notNull().default(''),
+	priority: text('priority', { enum: ['must', 'should', 'could'] }).$type<Priority>().notNull().default('must'),
+	assumptions: text('assumptions').notNull().default(''),
+	sortOrder: integer('sort_order').notNull().default(0)
+});
+
+/** O/M/P selalu dalam jam; satuan SP hanya tampilan (PRD 7.0). */
+export const estimateEfforts = sqliteTable(
+	'estimate_efforts',
+	{
+		featureId: integer('feature_id').notNull().references(() => estimateFeatures.id, { onDelete: 'cascade' }),
+		roleId: integer('role_id').notNull().references(() => roles.id),
+		o: real('o').notNull(),
+		m: real('m').notNull(),
+		p: real('p').notNull()
+	},
+	(t) => [uniqueIndex('estimate_efforts_pk').on(t.featureId, t.roleId)]
+);
+
+export const scenarios = sqliteTable('scenarios', {
+	id: integer('id').primaryKey(),
+	estimateId: integer('estimate_id').notNull().references(() => estimates.id, { onDelete: 'cascade' }),
+	name: text('name').notNull(),
+	/** null = semua prioritas */
+	priorities: text('priorities', { mode: 'json' }).$type<Priority[] | null>(),
+	overhead: text('overhead_items', { mode: 'json' }).$type<OverheadItem[]>().notNull().default(sql`'[]'`),
+	sortOrder: integer('sort_order').notNull().default(0)
+});
+
+export const scenarioTeam = sqliteTable(
+	'scenario_team',
+	{
+		scenarioId: integer('scenario_id').notNull().references(() => scenarios.id, { onDelete: 'cascade' }),
+		roleId: integer('role_id').notNull().references(() => roles.id),
+		mp: real('mp').notNull(),
+		/** null = sepanjang proyek */
+		months: real('months')
+	},
+	(t) => [uniqueIndex('scenario_team_pk').on(t.scenarioId, t.roleId)]
+);
+
+// ── F9 Proyek ──────────────────────────────────────────────────
+
+export const projects = sqliteTable('projects', {
+	id: integer('id').primaryKey(),
+	prospectId: integer('prospect_id').notNull().unique().references(() => prospects.id),
+	baselineEstimateId: integer('baseline_estimate_id').notNull().references(() => estimates.id),
+	baselineScenarioId: integer('baseline_scenario_id').notNull().references(() => scenarios.id),
+	/** YYYY-MM-DD */
+	startDate: text('start_date').notNull(),
+	/** Angka baseline yang dibekukan saat Deal. */
+	baseline: text('baseline', { mode: 'json' }).$type<ProjectBaseline>().notNull().default(sql`'{}'`),
+	status: text('status', { enum: ['aktif', 'selesai', 'ditunda'] }).notNull().default('aktif'),
+	createdAt: createdAt()
+});
+
+export const sprints = sqliteTable('sprints', {
+	id: integer('id').primaryKey(),
+	projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+	number: integer('number').notNull(),
+	startDate: text('start_date').notNull(),
+	endDate: text('end_date').notNull(),
+	plan: text('plan').notNull().default(''),
+	actual: text('actual').notNull().default('')
+});
+
+export const raidItems = sqliteTable('raid_items', {
+	id: integer('id').primaryKey(),
+	projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+	type: text('type', { enum: ['risk', 'assumption', 'issue', 'dependency'] }).notNull(),
+	description: text('description').notNull(),
+	owner: text('owner').notNull().default(''),
+	impact: integer('impact'),
+	likelihood: integer('likelihood'),
+	mitigation: text('mitigation').notNull().default(''),
+	reviewDate: text('review_date'),
+	status: text('status', { enum: ['terbuka', 'dipantau', 'selesai'] }).notNull().default('terbuka'),
+	createdAt: createdAt()
+});
+
+/** Jadwal dan progres fitur baseline di proyek berjalan (Gantt). Sprint 1-based, inklusif. */
+export const projectFeatures = sqliteTable(
+	'project_features',
+	{
+		projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+		/** Fitur di estimasi baseline (final, terkunci, sehingga ID-nya stabil). */
+		featureId: integer('feature_id').notNull().references(() => estimateFeatures.id),
+		baselineStart: integer('baseline_start').notNull(),
+		baselineEnd: integer('baseline_end').notNull(),
+		planStart: integer('plan_start').notNull(),
+		planEnd: integer('plan_end').notNull(),
+		/** 0–100; status diturunkan: 0 belum, 100 selesai, selain itu berjalan. */
+		progress: integer('progress').notNull().default(0),
+		updatedAt: integer('updated_at', { mode: 'timestamp' })
+	},
+	(t) => [uniqueIndex('project_features_pk').on(t.projectId, t.featureId)]
+);
+
+/** Aktivitas dan milestone proyek (kick-off, sprint, SIT, UAT, go-live, dll.) untuk Gantt. */
+export const projectActivities = sqliteTable('project_activities', {
+	id: integer('id').primaryKey(),
+	projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+	name: text('name').notNull(),
+	kind: text('kind', { enum: ['aktivitas', 'milestone'] }).notNull(),
+	/** YYYY-MM-DD; milestone: tanggal mulai = selesai. */
+	startDate: text('start_date').notNull(),
+	endDate: text('end_date').notNull(),
+	done: integer('done', { mode: 'boolean' }).notNull().default(false),
+	sortOrder: integer('sort_order').notNull().default(0)
+});

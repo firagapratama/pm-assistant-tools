@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `baseline` text DEFAULT '{}' NOT NULL;

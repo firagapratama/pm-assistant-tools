@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light;
+
+  /* Warna */
+  --kertas: #F4F5F1;
+  --permukaan: #FFFFFF;
+  --tinta: #1C2230;
+  --tinta-2: #596273;
+  --garis: #DCDFD8;
+  --nila: #2D3A6E;
+  --nila-sedang: #AEB6D9;
+  --nila-tipis: #E3E6F2;
+  --teks-di-nila: #FFFFFF;
+
+  --aman: #276B44;      --aman-tipis: #E8F3EC;
+  --waspada: #8A5A12;   --waspada-ikon: #B7791F;  --waspada-tipis: #FBF1DF;
+  --kritis: #B42318;    --kritis-tipis: #FBE9E7;
+
+  /* Tipografi */
+  --font: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --teks-angka-besar: 39px;
+  --teks-h1: 31px;
+  --teks-h2: 25px;
+  --teks-h3: 20px;
+  --teks-isi: 15px;
+  --teks-kecil: 13px;
+  --teks-mini: 12px;
+
+  /* Jarak */
+  --jarak-1: 4px;  --jarak-2: 8px;  --jarak-3: 12px;  --jarak-4: 16px;
+  --jarak-6: 24px; --jarak-8: 32px; --jarak-12: 48px;
+
+  /* Bentuk */
+  --radius-kecil: 6px;
+  --radius-panel: 10px;
+  --bayangan-melayang: 0 8px 24px rgba(28, 34, 48, 0.12);
+
+  /* Gerak */
+  --durasi-cepat: 200ms;
+  --durasi-sorot: 600ms;
+}
+
+body {
+  font-family: var(--font);
+  font-size: var(--teks-isi);
+  line-height: 1.55;
+  color: var(--tinta);
+  background: var(--kertas);
+}
+
+.angka { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
