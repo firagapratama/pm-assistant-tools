@@ -5,6 +5,7 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-or
 import type { EstimateSettings, Holiday, OverheadItem, Priority } from '../../calc';
 import { PROSPECT_STATUSES } from '../../labels.ts';
 import type { ProjectBaseline } from '../../project.ts';
+import type { CrImpact, ThreePointMap } from '../../change-request.ts';
 import type { ReportData } from '../../report.ts';
 
 const createdAt = () =>
@@ -244,13 +245,41 @@ export const raidItems = sqliteTable('raid_items', {
 	updatedAt: integer('updated_at', { mode: 'timestamp' })
 });
 
-/** Jadwal dan progres fitur baseline di proyek berjalan (Gantt). Sprint 1-based, inklusif. */
+/** Change request (F13). Dampak dibekukan saat diputuskan; yang disetujui masuk jadwal sebagai baris tambahan. */
+export const changeRequests = sqliteTable(
+	'change_requests',
+	{
+		id: integer('id').primaryKey(),
+		projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+		/** Nomor urut per proyek (CR-1, CR-2, ...). */
+		number: integer('number').notNull(),
+		title: text('title').notNull(),
+		description: text('description').notNull().default(''),
+		requester: text('requester').notNull().default(''),
+		/** YYYY-MM-DD */
+		requestDate: text('request_date').notNull(),
+		reason: text('reason').notNull().default(''),
+		/** Effort per peran dalam jam (O/M/P), seperti fitur estimasi. */
+		efforts: text('efforts', { mode: 'json' }).$type<ThreePointMap>().notNull().default(sql`'{}'`),
+		status: text('status', { enum: ['diajukan', 'disetujui', 'ditolak'] }).notNull().default('diajukan'),
+		approver: text('approver').notNull().default(''),
+		decisionDate: text('decision_date'),
+		decisionNote: text('decision_note').notNull().default(''),
+		impact: text('impact', { mode: 'json' }).$type<CrImpact>(),
+		createdAt: createdAt()
+	},
+	(t) => [uniqueIndex('change_requests_number').on(t.projectId, t.number)]
+);
+
+/** Jadwal dan progres fitur di proyek berjalan (Gantt). Sprint 1-based, inklusif. */
 export const projectFeatures = sqliteTable(
 	'project_features',
 	{
 		projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-		/** Fitur di estimasi baseline (final, terkunci, sehingga ID-nya stabil). */
-		featureId: integer('feature_id').notNull().references(() => estimateFeatures.id),
+		/** Fitur di estimasi baseline (final, terkunci, sehingga ID-nya stabil); null untuk change request. */
+		featureId: integer('feature_id').references(() => estimateFeatures.id),
+		/** Change request yang disetujui; null untuk fitur baseline. */
+		changeRequestId: integer('change_request_id').references(() => changeRequests.id, { onDelete: 'cascade' }),
 		baselineStart: integer('baseline_start').notNull(),
 		baselineEnd: integer('baseline_end').notNull(),
 		planStart: integer('plan_start').notNull(),
@@ -259,7 +288,10 @@ export const projectFeatures = sqliteTable(
 		progress: integer('progress').notNull().default(0),
 		updatedAt: integer('updated_at', { mode: 'timestamp' })
 	},
-	(t) => [uniqueIndex('project_features_pk').on(t.projectId, t.featureId)]
+	(t) => [
+		uniqueIndex('project_features_pk').on(t.projectId, t.featureId),
+		uniqueIndex('project_features_cr').on(t.changeRequestId)
+	]
 );
 
 /** Aktivitas dan milestone proyek (kick-off, sprint, SIT, UAT, go-live, dll.) untuk Gantt. */

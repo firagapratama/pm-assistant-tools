@@ -9,7 +9,10 @@ import { roleLabel } from '../labels.ts';
 import { maxPlanSprint, type ProjectBaseline } from '../project.ts';
 import { HEALTHS, projectStatus, statusInputFrom, type Health } from '../project-status.ts';
 import type { Db, DbLike } from './db/index.ts';
+import type { Priority } from '../calc/index.ts';
+import { crImpact, crLabel, type ThreePointMap } from '../change-request.ts';
 import {
+	changeRequests,
 	estimateEfforts,
 	estimateFeatures,
 	estimates,
@@ -138,14 +141,20 @@ export function getProject(db: Db, id: number) {
 	ensureActivities(db, id);
 	const prospect = db.select().from(prospects).where(eq(prospects.id, project.prospectId)).get()!;
 	const estimateRow = db.select({ version: estimates.version }).from(estimates).where(eq(estimates.id, project.baselineEstimateId)).get()!;
+	const estimate = getEstimate(db, prospect.id, estimateRow.version)!;
+	const crs = db.select().from(changeRequests).where(eq(changeRequests.projectId, id)).orderBy(desc(changeRequests.number)).all();
+	const ctx = { draft: estimate.draft, rates: estimate.rates, holidays: estimate.holidays, startDate: project.startDate };
+	const approvedEfforts = crs.filter((c) => c.status === 'disetujui').toReversed().map((c) => c.efforts);
 	return {
 		project,
 		prospect,
-		estimate: getEstimate(db, prospect.id, estimateRow.version)!,
+		estimate,
 		sprints: db.select().from(sprints).where(eq(sprints.projectId, id)).orderBy(asc(sprints.number)).all(),
 		raid: db.select().from(raidItems).where(eq(raidItems.projectId, id)).orderBy(asc(raidItems.id)).all(),
 		schedule: getSchedule(db, id),
-		activities: listActivities(db, id)
+		activities: listActivities(db, id),
+		/** `effect`: dampak yang dibekukan bila sudah diputuskan, atau perkiraan saat ini bila masih diajukan. */
+		changeRequests: crs.map((c) => ({ ...c, effect: c.impact ?? crImpact(ctx, approvedEfforts, c.efforts) }))
 	};
 }
 
@@ -170,12 +179,14 @@ export function projectDashboard(db: Db, today: string) {
 				overall: st.overall,
 				expected: st.expected,
 				currentSprint: st.currentSprint,
-				totalSprints: p.project.baseline.totalSprints,
+				totalSprints: p.project.baseline.totalSprints + st.scope.sprints,
 				plannedEnd: st.plannedEnd,
 				slipDays: st.slipDays,
 				highRisks: st.highRisks.length,
 				blockers: st.blockers.length,
 				late: st.late.length,
+				pendingCr: st.pendingCr,
+				scopePct: st.scope.effortPct,
 				nextDue: st.nextDue && { name: st.nextDue.name, kind: st.nextDue.kind, date: st.nextDue.endDate }
 			};
 		})
@@ -251,39 +262,58 @@ export function ensureSchedule(db: DbLike, projectId: number) {
 		.run();
 }
 
+/** Baris jadwal: fitur baseline (urut estimasi), lalu change request yang disetujui (urut nomor). */
 export function getSchedule(db: Db, projectId: number) {
 	const project = db.select({ estimateId: projects.baselineEstimateId }).from(projects).where(eq(projects.id, projectId)).get();
 	if (!project) return [];
 	const rows = db.select().from(projectFeatures).where(eq(projectFeatures.projectId, projectId)).all();
-	return baselineFeatures(db, project.estimateId)
-		.map((f) => {
-			const r = rows.find((x) => x.featureId === f.id);
-			return r
-				? {
-						featureId: f.id,
-						module: f.module,
-						name: f.name,
-						priority: f.priority,
-						effortHours: Object.values(f.efforts).reduce((a, t) => a + pertE(t), 0),
-						baselineStart: r.baselineStart,
-						baselineEnd: r.baselineEnd,
-						planStart: r.planStart,
-						planEnd: r.planEnd,
-						progress: r.progress,
-						updatedAt: r.updatedAt
-					}
-				: null;
-		})
-		.filter((x) => x !== null);
+	const row = (r: (typeof rows)[number], f: { module: string; name: string; priority: Priority; efforts: ThreePointMap }) => ({
+		/** Kunci baris jadwal: `f<fiturId>` atau `c<crId>`. */
+		key: r.changeRequestId ? `c${r.changeRequestId}` : `f${r.featureId}`,
+		featureId: r.featureId,
+		changeRequestId: r.changeRequestId,
+		module: f.module,
+		name: f.name,
+		priority: f.priority,
+		effortHours: Object.values(f.efforts).reduce((a, t) => a + pertE(t), 0),
+		baselineStart: r.baselineStart,
+		baselineEnd: r.baselineEnd,
+		planStart: r.planStart,
+		planEnd: r.planEnd,
+		progress: r.progress,
+		updatedAt: r.updatedAt
+	});
+	const baseline = baselineFeatures(db, project.estimateId).flatMap((f) => {
+		const r = rows.find((x) => x.featureId === f.id);
+		return r ? [row(r, f)] : [];
+	});
+	const crs = db
+		.select()
+		.from(changeRequests)
+		.where(and(eq(changeRequests.projectId, projectId), eq(changeRequests.status, 'disetujui')))
+		.orderBy(asc(changeRequests.number))
+		.all()
+		.flatMap((c) => {
+			const r = rows.find((x) => x.changeRequestId === c.id);
+			return r ? [row(r, { module: 'Change request', name: `${crLabel(c.number)} ${c.title}`, priority: 'must', efforts: c.efforts })] : [];
+		});
+	return [...baseline, ...crs];
 }
 
 export type ScheduleRow = ReturnType<typeof getSchedule>[number];
 
 
+/** Baris jadwal dari kuncinya (`f<fiturId>` / `c<crId>`). */
+function scheduleRow(key: string) {
+	const m = /^([fc])([1-9]\d*)$/.exec(key);
+	if (!m) throw new ScheduleError('Baris jadwal tidak dikenal.');
+	return m[1] === 'f' ? eq(projectFeatures.featureId, Number(m[2])) : eq(projectFeatures.changeRequestId, Number(m[2]));
+}
+
 export function updateFeatureSchedule(
 	db: Db,
 	projectId: number,
-	featureId: number,
+	key: string,
 	change: { planStart: number; planEnd: number; progress: number }
 ) {
 	const project = db.select({ baseline: projects.baseline }).from(projects).where(eq(projects.id, projectId)).get();
@@ -297,7 +327,7 @@ export function updateFeatureSchedule(
 	const res = db
 		.update(projectFeatures)
 		.set({ planStart, planEnd, progress, updatedAt: new Date() })
-		.where(and(eq(projectFeatures.projectId, projectId), eq(projectFeatures.featureId, featureId)))
+		.where(and(eq(projectFeatures.projectId, projectId), scheduleRow(key)))
 		.run();
 	if (res.changes === 0) throw new ScheduleError('Fitur tidak ada di proyek ini.');
 }
@@ -309,7 +339,7 @@ export function resetSchedule(db: Db, projectId: number) {
 		for (const r of rows)
 			tx.update(projectFeatures)
 				.set({ planStart: r.baselineStart, planEnd: r.baselineEnd })
-				.where(and(eq(projectFeatures.projectId, projectId), eq(projectFeatures.featureId, r.featureId)))
+				.where(and(eq(projectFeatures.projectId, projectId), r.changeRequestId ? eq(projectFeatures.changeRequestId, r.changeRequestId) : eq(projectFeatures.featureId, r.featureId!)))
 				.run();
 	});
 }

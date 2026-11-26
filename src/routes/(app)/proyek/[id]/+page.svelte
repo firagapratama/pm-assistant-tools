@@ -10,6 +10,7 @@
 	import { date, decimal, range, rupiah, rupiahShort, todayIso } from '#lib/format/index.ts';
 	import { maxPlanSprint } from '#lib/project.ts';
 	import { HEALTHS, HEALTH_LABEL, projectStatus, statusInputFrom, type Health } from '#lib/project-status.ts';
+	import CrTab from './CrTab.svelte';
 	import RaidTab from './RaidTab.svelte';
 	import ReportsTab from './ReportsTab.svelte';
 	import Gantt, { type GanttActivity } from './Gantt.svelte';
@@ -29,6 +30,7 @@
 	const TABS = [
 		{ id: 'jadwal', label: 'Jadwal' },
 		{ id: 'raid', label: 'RAID' },
+		{ id: 'cr', label: 'Change request' },
 		{ id: 'laporan', label: 'Laporan' },
 		{ id: 'baseline', label: 'Baseline & tim' },
 		{ id: 'lingkup', label: 'Ruang lingkup' }
@@ -46,6 +48,8 @@
 	let lateCount = $derived(st.late.length);
 	let plannedEnd = $derived(st.plannedEnd);
 	let slipDays = $derived(st.slipDays);
+	let pendingCr = $derived(data.changeRequests.filter((c) => c.status === 'diajukan').length);
+	let ref = $derived(st.targetEnd !== b.endDate ? 'target (baseline + CR)' : 'baseline');
 
 	// ── Jadwal ──
 	let sprintDays = $derived(est.draft.settings.sprintWeeks * 7);
@@ -82,8 +86,8 @@
 		if (patch.planStart !== undefined && next.planEnd < next.planStart) next.planEnd = next.planStart;
 		if (patch.planEnd !== undefined && next.planStart > next.planEnd) next.planStart = next.planEnd;
 		next.progress = Math.round(Math.min(100, Math.max(0, next.progress)));
-		saving = `f${r.featureId}`;
-		await post('updateFeature', { featureId: r.featureId, ...next });
+		saving = r.key;
+		await post('updateFeature', { key: r.key, ...next });
 		saving = null;
 	}
 
@@ -169,7 +173,7 @@
 		<span class="label">Selesai (rencana)</span>
 		<strong>{date(plannedEnd)}</strong>
 		<span class="sub" class:waspada-teks={slipDays > 0}>
-			{slipDays > 0 ? `${slipDays} hari setelah baseline` : slipDays < 0 ? `${-slipDays} hari lebih awal` : 'sesuai baseline'}
+			{slipDays > 0 ? `${slipDays} hari setelah ${ref}` : slipDays < 0 ? `${-slipDays} hari lebih awal` : `sesuai ${ref}`}
 		</span>
 	</div>
 	<div>
@@ -217,6 +221,7 @@
 			{t.label}
 			{#if t.id === 'jadwal' && lateCount > 0}<span class="titik" aria-label="{lateCount} terlambat"></span>{/if}
 			{#if t.id === 'raid' && st.highRisks.length}<span class="titik" aria-label="{st.highRisks.length} risiko tinggi"></span>{/if}
+			{#if t.id === 'cr' && pendingCr}<span class="jumlah">{pendingCr}</span>{/if}
 			{#if t.id === 'laporan' && data.reports.some((r) => !r.sentAt)}<span class="jumlah">draf</span>{/if}
 		</a>
 	{/each}
@@ -310,10 +315,10 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each ganttRows as r (r.featureId)}
-							{@const raw = data.schedule.find((x) => x.featureId === r.featureId)!}
-							{@const busy = saving === `f${r.featureId}`}
-							<tr id="baris-f{r.featureId}" class:dipilih={selected === `f${r.featureId}`}>
+						{#each ganttRows as r (r.key)}
+							{@const raw = data.schedule.find((x) => x.key === r.key)!}
+							{@const busy = saving === r.key}
+							<tr id="baris-{r.key}" class:dipilih={selected === r.key}>
 								<td><span class="sub">{r.module}</span>{r.name}</td>
 								<td class="redup nowrap">S{raw.baselineStart}{raw.baselineEnd !== raw.baselineStart ? `–${raw.baselineEnd}` : ''}</td>
 								<td>
@@ -451,6 +456,14 @@
 	</div>
 {:else if tab === 'raid'}
 	<RaidTab items={data.raid} {today} {post} />
+{:else if tab === 'cr'}
+	<CrTab
+		items={data.changeRequests}
+		ctx={{ draft: est.draft, rates: est.rates, holidays: est.holidays, startDate: pr.startDate }}
+		baseline={b}
+		{today}
+		{post}
+	/>
 {:else if tab === 'laporan'}
 	<ReportsTab {data} {today} {post} />
 {:else}

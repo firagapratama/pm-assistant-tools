@@ -88,7 +88,7 @@ describe('kesehatan proyek', () => {
 
 	it('Merah bila selesai mundur lebih dari 20% durasi baseline', () => {
 		const f = getProject(db, projectId)!.schedule[1];
-		updateFeatureSchedule(db, projectId, f.featureId, { planStart: f.planStart, planEnd: f.planEnd + 3, progress: 0 });
+		updateFeatureSchedule(db, projectId, f.key, { planStart: f.planStart, planEnd: f.planEnd + 3, progress: 0 });
 		const s = status('2027-07-05');
 		expect(s.slipDays).toBeGreaterThan(0);
 		expect(s.health).toBe('merah');

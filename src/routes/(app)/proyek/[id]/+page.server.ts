@@ -14,6 +14,7 @@ import { todayIso } from '#lib/format/index.ts';
 import type { Health } from '#lib/project-status.ts';
 import { RAID_STATUSES, RAID_TYPES, type RaidStatus, type RaidType } from '#lib/raid.ts';
 import { RaidError, deleteRaid, saveRaid } from '#lib/server/raid.ts';
+import { CrError, decideChangeRequest, deleteChangeRequest, saveChangeRequest } from '#lib/server/change-requests.ts';
 import { ReportError, createWeeklyReport, deleteDraftReport, listReports, saveNarrative, sendReport } from '#lib/server/reports.ts';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -29,14 +30,24 @@ export const load: PageServerLoad = ({ params }) => {
 };
 
 const scale = (v: string | undefined) => (v ? Number(v) : null);
-const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError;
+const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError || e instanceof CrError;
+
+function effortsOf(raw: string | undefined) {
+	try {
+		const v = JSON.parse(raw ?? '{}');
+		if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+	} catch {
+		/* ditolak di bawah */
+	}
+	throw new CrError('Effort tidak valid.');
+}
 
 export const actions: Actions = {
 	updateFeature: async ({ params, request }) => {
 		const { project } = load404(params.id);
 		const form = await formOf(request);
 		try {
-			updateFeatureSchedule(db, project.id, idOf(form.featureId), {
+			updateFeatureSchedule(db, project.id, form.key ?? '', {
 				planStart: Number(form.planStart),
 				planEnd: Number(form.planEnd),
 				progress: Number(form.progress)
@@ -148,6 +159,54 @@ export const actions: Actions = {
 		const { project } = load404(params.id);
 		resetSchedule(db, project.id);
 		return { message: 'Rencana dikembalikan ke baseline' };
+	},
+
+	saveCr: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		try {
+			const id = saveChangeRequest(db, project.id, form.id ? idOf(form.id) : null, {
+				title: form.title ?? '',
+				description: form.description ?? '',
+				requester: form.requester ?? '',
+				requestDate: form.requestDate ?? '',
+				reason: form.reason ?? '',
+				efforts: effortsOf(form.efforts)
+			});
+			return { message: 'Change request disimpan', crId: id };
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+	},
+
+	decideCr: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		try {
+			decideChangeRequest(db, project.id, idOf(form.id), {
+				status: form.status as 'disetujui' | 'ditolak',
+				approver: form.approver ?? '',
+				decisionDate: form.decisionDate ?? '',
+				note: form.note ?? ''
+			});
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { message: form.status === 'disetujui' ? 'CR disetujui dan masuk jadwal' : 'CR ditolak' };
+	},
+
+	deleteCr: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		try {
+			deleteChangeRequest(db, project.id, idOf(form.id));
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { message: 'Change request dihapus' };
 	},
 
 	setHealth: async ({ params, request }) => {

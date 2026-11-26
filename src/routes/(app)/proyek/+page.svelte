@@ -48,6 +48,10 @@
 				<span class="label">Blocker aktif</span>
 				<strong>{active.reduce((a, p) => a + p.blockers, 0)}</strong>
 			</div>
+			<div>
+				<span class="label">CR menunggu keputusan</span>
+				<strong>{active.reduce((a, p) => a + p.pendingCr, 0)}</strong>
+			</div>
 		</section>
 	{/if}
 
@@ -62,6 +66,7 @@
 					<th>Selesai (rencana)</th>
 					<th class="angka">Risiko tinggi</th>
 					<th class="angka">Blocker</th>
+					<th>Change request</th>
 					<th>Tenggat terdekat</th>
 				</tr>
 			</thead>
@@ -94,6 +99,10 @@
 						</td>
 						<td class="angka" class:kritis-teks={p.highRisks > 0}>{p.highRisks}</td>
 						<td class="angka" class:waspada-teks={p.blockers > 0}>{p.blockers}</td>
+						<td class="nowrap">
+							{#if p.pendingCr}<span class="waspada-teks">{p.pendingCr} menunggu</span>{/if}
+							<span class="sub">{p.scopePct ? `${p.scopePct > 0 ? '+' : '−'}${decimal(Math.abs(p.scopePct), 1)}% effort dari baseline` : p.pendingCr ? '' : '—'}</span>
+						</td>
 						<td>
 							{#if p.nextDue}
 								{p.nextDue.name}
@@ -113,7 +122,7 @@
 <style>
 	.ringkas {
 		display: grid;
-		grid-template-columns: repeat(6, 1fr);
+		grid-template-columns: repeat(7, 1fr);
 		margin-bottom: var(--jarak-6);
 	}
 	.ringkas > div {
@@ -186,6 +195,9 @@
 		bottom: -3px;
 		width: 0;
 		border-left: 2px dashed var(--tinta-2);
+	}
+	.nowrap {
+		white-space: nowrap;
 	}
 	.waspada-teks {
 		color: var(--waspada);

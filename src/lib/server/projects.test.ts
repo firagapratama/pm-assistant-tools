@@ -127,15 +127,15 @@ describe('jadwal fitur (Gantt)', () => {
 	it('rencana dan progres bisa diubah dengan validasi; baseline tetap; reset mengembalikan rencana', () => {
 		const id = dealProspect(db, prospectId, '2027-03-08');
 		const f = getProject(db, id)!.schedule[0];
-		updateFeatureSchedule(db, id, f.featureId, { planStart: 2, planEnd: 5, progress: 40 });
+		updateFeatureSchedule(db, id, f.key, { planStart: 2, planEnd: 5, progress: 40 });
 		const after = getProject(db, id)!.schedule[0];
 		expect(after).toMatchObject({ planStart: 2, planEnd: 5, progress: 40, baselineStart: f.baselineStart, baselineEnd: f.baselineEnd });
 		expect(after.updatedAt).toBeInstanceOf(Date);
 
-		expect(() => updateFeatureSchedule(db, id, f.featureId, { planStart: 4, planEnd: 2, progress: 0 })).toThrow(ScheduleError);
-		expect(() => updateFeatureSchedule(db, id, f.featureId, { planStart: 1, planEnd: 99, progress: 0 })).toThrow(/antara 1/);
-		expect(() => updateFeatureSchedule(db, id, f.featureId, { planStart: 1, planEnd: 2, progress: 101 })).toThrow(/0–100/);
-		expect(() => updateFeatureSchedule(db, id, 9999, { planStart: 1, planEnd: 2, progress: 0 })).toThrow(/tidak ada/);
+		expect(() => updateFeatureSchedule(db, id, f.key, { planStart: 4, planEnd: 2, progress: 0 })).toThrow(ScheduleError);
+		expect(() => updateFeatureSchedule(db, id, f.key, { planStart: 1, planEnd: 99, progress: 0 })).toThrow(/antara 1/);
+		expect(() => updateFeatureSchedule(db, id, f.key, { planStart: 1, planEnd: 2, progress: 101 })).toThrow(/0–100/);
+		expect(() => updateFeatureSchedule(db, id, 'f9999', { planStart: 1, planEnd: 2, progress: 0 })).toThrow(/tidak ada/);
 
 		resetSchedule(db, id);
 		expect(getProject(db, id)!.schedule[0]).toMatchObject({ planStart: f.baselineStart, planEnd: f.baselineEnd, progress: 40 });

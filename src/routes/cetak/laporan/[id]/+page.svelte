@@ -2,7 +2,8 @@
 	// Laporan status mingguan untuk dicetak/PDF (A4). Template Direksi (ringkas) atau Teknis (rinci).
 	import { page } from '$app/state';
 	import { ArrowLeft, Printer } from '@lucide/svelte';
-	import { dateLong, date, decimal } from '#lib/format/index.ts';
+	import { dateLong, date, decimal, rupiahShort } from '#lib/format/index.ts';
+	import { CR_STATUS_LABEL } from '#lib/change-request.ts';
 	import { HEALTH_LABEL } from '#lib/project-status.ts';
 	import type { PageProps } from './$types';
 
@@ -19,6 +20,8 @@
 		['Rencana minggu depan', r.nextWeek],
 		['Bantuan yang dibutuhkan', r.helpNeeded]
 	] as const);
+	const signed = (n: number, d = 0) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${decimal(Math.abs(n), d)}`;
+	const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${rupiahShort(Math.abs(n))}`;
 	const lines = (t: string) => t.split('\n').map((l) => l.trim()).filter(Boolean);
 </script>
 
@@ -113,6 +116,33 @@
 		</div>
 	</section>
 
+	{#if c.changeRequests?.length || c.scope?.count}
+		<section>
+			<h2>Change request</h2>
+			{#if c.scope?.count}
+				<p class="scope">
+					{c.scope.count} CR disetujui sejak baseline: {signed(c.scope.effortPct, 1)}% effort · {signed(c.scope.sprints)} sprint · {money(c.scope.price)} harga jual.
+				</p>
+			{/if}
+			{#if c.changeRequests?.length}
+				<table>
+					<thead><tr><th>No.</th><th>Perubahan</th><th>Status</th><th class="kanan">Sprint</th><th class="kanan">Harga</th></tr></thead>
+					<tbody>
+						{#each c.changeRequests as cr, i (i)}
+							<tr>
+								<td>{cr.label}</td>
+								<td>{cr.title}</td>
+								<td>{CR_STATUS_LABEL[cr.status]}{cr.decisionDate ? ` ${date(cr.decisionDate)}` : ''}</td>
+								<td class="kanan">{signed(cr.sprints)}</td>
+								<td class="kanan">{money(cr.price)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
+		</section>
+	{/if}
+
 	{#if teknis}
 		{#if c.late.length}
 			<section>
@@ -158,7 +188,7 @@
 	<footer class="catatan">
 		Data per {dateLong(c.generatedOn)}{r.sentAt ? `, dibekukan saat dikirim ${dateLong(r.sentAt)}` : ' (draf, dapat berubah)'}. Status:
 		Merah bila proyeksi selesai mundur &gt; 20% atau ada risiko tinggi tanpa mitigasi; Kuning bila mundur 10–20%, ada item
-		terlambat, atau progres &gt; 15 poin di bawah rencana.
+		terlambat, progres &gt; 15 poin di bawah rencana, atau blocker (isu terbuka) &gt; 2 hari. CR yang disetujui menggeser target selesai.
 	</footer>
 </article>
 

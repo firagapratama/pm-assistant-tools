@@ -1,5 +1,6 @@
 // Laporan status mingguan (PRD F14): data otomatis dari jadwal dan RAID, dibekukan saat dikirim.
 import { addDays } from './calc/calendar.ts';
+import { crLabel, type CrStatus } from './change-request.ts';
 import { projectStatus, type Health, type StatusInput } from './project-status.ts';
 import { RAID_TYPE_LABEL, raidScore, reviewOverdue, severity, isOpen, type RaidType } from './raid.ts';
 
@@ -37,15 +38,17 @@ export interface ReportData {
 		reviewOverdue: boolean;
 	}[];
 	newRaidThisWeek: number;
+	/** CR yang menunggu keputusan, diajukan, atau diputuskan di periode ini (laporan lama: tidak ada). */
+	changeRequests?: { label: string; title: string; status: CrStatus; effortHours: number; sprints: number; price: number; decisionDate: string | null }[];
+	/** Akumulasi perubahan scope yang disetujui sejak baseline. */
+	scope?: { count: number; effortPct: number; sprints: number; price: number };
 }
 
 export function buildReport(input: StatusInput, period: { start: string; end: string }): ReportData {
 	const s = projectStatus(input);
 	const nextWeekEnd = addDays(period.end, 7);
-	const inPeriod = (d: Date) => {
-		const iso = d.toISOString().slice(0, 10);
-		return iso >= period.start && iso <= period.end;
-	};
+	const isoIn = (iso: string) => iso >= period.start && iso <= period.end;
+	const inPeriod = (d: Date) => isoIn(d.toISOString().slice(0, 10));
 	return {
 		generatedOn: input.today,
 		period,
@@ -82,6 +85,19 @@ export function buildReport(input: StatusInput, period: { start: string; end: st
 				};
 			})
 			.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
-		newRaidThisWeek: input.raid.filter((r) => inPeriod(r.createdAt)).length
+		newRaidThisWeek: input.raid.filter((r) => inPeriod(r.createdAt)).length,
+		changeRequests: (input.changeRequests ?? [])
+			.filter((c) => c.status === 'diajukan' || isoIn(c.requestDate) || (c.decisionDate !== null && isoIn(c.decisionDate)))
+			.toSorted((a, b) => a.number - b.number)
+			.map((c) => ({
+				label: crLabel(c.number),
+				title: c.title,
+				status: c.status,
+				effortHours: c.effect.effortHours,
+				sprints: c.effect.sprints,
+				price: c.effect.price,
+				decisionDate: c.decisionDate
+			})),
+		scope: { count: s.scope.count, effortPct: s.scope.effortPct, sprints: s.scope.sprints, price: s.scope.price }
 	};
 }

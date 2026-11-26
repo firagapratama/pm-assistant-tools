@@ -4,6 +4,7 @@
 	import { Check, FileText, LoaderCircle, Plus, Send, Trash2 } from '@lucide/svelte';
 	import { date, decimal } from '#lib/format/index.ts';
 	import { HEALTH_LABEL, statusInputFrom, type Health, type StatusInput } from '#lib/project-status.ts';
+	import { CR_STATUS_LABEL } from '#lib/change-request.ts';
 	import { buildReport, weekOf, type ReportData } from '#lib/report.ts';
 	import type { ProjectBaseline } from '#lib/project.ts';
 	import type { EstimateSettings } from '#lib/calc/settings.ts';
@@ -33,6 +34,7 @@
 			schedule: StatusInput['schedule'];
 			activities: StatusInput['activities'];
 			raid: StatusInput['raid'];
+			changeRequests: StatusInput['changeRequests'];
 		};
 		today: string;
 		post: (action: string, fields: Record<string, string | number | boolean>) => Promise<Record<string, unknown> | null | undefined>;
@@ -170,6 +172,15 @@
 						{content.openRaid.filter((r) => r.severity === 'tinggi').length} risiko tinggi terbuka · {content.openRaid.length} item terbuka ·
 						{content.newRaidThisWeek} baru minggu ini
 					</dd>
+					{#if content.changeRequests?.length || content.scope?.count}
+						<dt>Change request</dt>
+						<dd>
+							{#each content.changeRequests ?? [] as cr, i (i)}
+								{cr.label} {cr.title} <span class="redup">({CR_STATUS_LABEL[cr.status].toLowerCase()})</span>{i < (content.changeRequests?.length ?? 0) - 1 ? ' · ' : ''}
+							{/each}
+							{#if content.scope?.count}<span class="redup">— total disetujui {content.scope.effortPct > 0 ? '+' : ''}{decimal(content.scope.effortPct, 1)}% effort dari baseline</span>{/if}
+						</dd>
+					{/if}
 				</dl>
 				{#if content.upcoming.length}
 					<h3>Aktivitas minggu ini dan depan</h3>

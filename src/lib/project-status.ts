@@ -1,6 +1,7 @@
 // Status proyek berjalan: dipakai halaman proyek dan laporan mingguan (F14), satu sumber perhitungan.
 import { WorkCalendar, type Holiday } from './calc/calendar.ts';
 import type { EstimateSettings } from './calc/settings.ts';
+import { scopeChange, type CrImpact, type CrStatus } from './change-request.ts';
 import { weightedProgress, type ProjectBaseline } from './project.ts';
 import { isHighRisk, isOpen, reviewOverdue, type RaidLike } from './raid.ts';
 
@@ -17,9 +18,11 @@ export interface StatusInput {
 	baseline: ProjectBaseline;
 	settings: EstimateSettings;
 	holidays: Holiday[];
-	schedule: { featureId: number; module: string; name: string; effortHours: number; planStart: number; planEnd: number; progress: number }[];
+	schedule: { key: string; module: string; name: string; effortHours: number; planStart: number; planEnd: number; progress: number }[];
 	activities: { id: number; name: string; kind: 'aktivitas' | 'milestone'; startDate: string; endDate: string; done: boolean }[];
 	raid: (RaidLike & { id: number; description: string; owner: string; createdAt: Date })[];
+	/** Change request; yang disetujui menggeser target selesai (baseline tetap). */
+	changeRequests?: { number: number; title: string; status: CrStatus; requestDate: string; decisionDate: string | null; impact: CrImpact | null; effect: CrImpact }[];
 	/** Status yang ditetapkan PM; menggantikan status otomatis. */
 	override?: { health: Health; reason: string } | null;
 	today: string;
@@ -30,6 +33,8 @@ const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)
 
 export function projectStatus(input: StatusInput) {
 	const { startDate, baseline: b, today } = input;
+	const approvedCr = (input.changeRequests ?? []).filter((c) => c.status === 'disetujui');
+	const approvedSprints = approvedCr.reduce((a, c) => a + (c.impact?.sprints ?? 0), 0);
 	const calendar = new WorkCalendar(startDate, input.settings, input.holidays);
 	const sprintFrom = (n: number) => calendar.sprint(n - 1).from;
 	const sprintTo = (n: number) => calendar.sprint(n - 1).to;
@@ -55,11 +60,14 @@ export function projectStatus(input: StatusInput) {
 			return { effortHours: r.effortHours, progress: Math.min(100, Math.max(0, ((Date.parse(today) - from) / (to - from)) * 100)) };
 		})
 	);
-	const plannedEnd =
-		[...input.activities.map((a) => a.endDate), calendar.endDate(Math.max(0, ...input.schedule.map((r) => r.planEnd)))].sort().at(-1) ??
-		b.endDate;
-	const slipDays = days(b.endDate, plannedEnd);
-	const durationDays = Math.max(1, days(startDate, b.endDate));
+	// Sprint stabilisasi/UAT selalu menyusul fitur terakhir, jadi fitur yang mundur ikut memundurkan akhir proyek.
+	const lastFeatureSprint = Math.max(0, ...input.schedule.map((r) => r.planEnd));
+	const featuresEnd = lastFeatureSprint ? calendar.endDate(lastFeatureSprint + b.totalSprints - b.devSprints) : b.endDate;
+	const plannedEnd = [...input.activities.map((a) => a.endDate), featuresEnd].sort().at(-1)!;
+	/** Target selesai = baseline + sprint CR yang disetujui. */
+	const targetEnd = approvedSprints ? calendar.endDate(b.totalSprints + approvedSprints) : b.endDate;
+	const slipDays = days(targetEnd, plannedEnd);
+	const durationDays = Math.max(1, days(startDate, targetEnd));
 	const slipPct = (slipDays / durationDays) * 100;
 
 	const late = [
@@ -75,13 +83,14 @@ export function projectStatus(input: StatusInput) {
 	const staleBlockers = blockers.filter((r) => days(r.createdAt.toISOString().slice(0, 10), today) > BLOCKER_DAYS);
 	const nextDue = activities.filter((a) => !a.done && a.endDate >= today).sort((a, b) => a.endDate.localeCompare(b.endDate))[0] ?? null;
 	let currentSprint = 0;
-	while (currentSprint < b.totalSprints && today >= sprintFrom(currentSprint + 1)) currentSprint++;
+	while (currentSprint < b.totalSprints + approvedSprints && today >= sprintFrom(currentSprint + 1)) currentSprint++;
 
 	// Kesehatan (diadaptasi dari PRD F10; biaya belum dilacak sehingga hanya jadwal dan risiko).
 	const red: string[] = [];
 	const yellow: string[] = [];
-	if (slipPct > 20) red.push(`Proyeksi selesai mundur ${slipDays} hari (${Math.round(slipPct)}% dari durasi baseline)`);
-	else if (slipPct >= 10) yellow.push(`Proyeksi selesai mundur ${slipDays} hari (${Math.round(slipPct)}% dari durasi baseline)`);
+	const slipText = `Proyeksi selesai mundur ${slipDays} hari (${Math.round(slipPct)}% dari durasi ${approvedSprints ? 'baseline + CR' : 'baseline'})`;
+	if (slipPct > 20) red.push(slipText);
+	else if (slipPct >= 10) yellow.push(slipText);
 	if (unmitigated.length) red.push(`${unmitigated.length} risiko tinggi belum punya mitigasi`);
 	if (late.length) yellow.push(`${late.length} fitur/aktivitas terlambat`);
 	if (behind > 15) yellow.push(`Progres ${Math.round(behind)} poin di bawah rencana`);
@@ -97,6 +106,9 @@ export function projectStatus(input: StatusInput) {
 		overall,
 		expected,
 		plannedEnd,
+		targetEnd,
+		scope: scopeChange(b, approvedCr.flatMap((c) => (c.impact ? [c.impact] : []))),
+		pendingCr: (input.changeRequests ?? []).filter((c) => c.status === 'diajukan').length,
 		slipDays,
 		late,
 		highRisks,
@@ -122,6 +134,7 @@ export function statusInputFrom(
 		schedule: StatusInput['schedule'];
 		activities: StatusInput['activities'];
 		raid: StatusInput['raid'];
+		changeRequests?: StatusInput['changeRequests'];
 	},
 	today: string
 ): StatusInput {
@@ -133,6 +146,7 @@ export function statusInputFrom(
 		schedule: p.schedule,
 		activities: p.activities,
 		raid: p.raid,
+		changeRequests: p.changeRequests,
 		override: p.project.healthOverride ? { health: p.project.healthOverride, reason: p.project.healthReason ?? '' } : null,
 		today
 	};
