@@ -328,7 +328,9 @@ export const projectActivities = sqliteTable('project_activities', {
 	startDate: text('start_date').notNull(),
 	endDate: text('end_date').notNull(),
 	done: integer('done', { mode: 'boolean' }).notNull().default(false),
-	sortOrder: integer('sort_order').notNull().default(0)
+	sortOrder: integer('sort_order').notNull().default(0),
+	/** Aktivitas "Sprint N" dari templat: dicentang otomatis saat semua fitur yang selesai di sprint N mencapai 100%. */
+	sprintNumber: integer('sprint_number')
 });
 
 /** Laporan status mingguan (F14). Data otomatis dibekukan di `snapshot` saat dikirim. */

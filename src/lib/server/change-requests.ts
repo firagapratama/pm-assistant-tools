@@ -6,6 +6,7 @@ import { maxPlanSprint } from '../project.ts';
 import type { Db } from './db/index.ts';
 import { changeRequests, projectFeatures, projects } from './db/schema.ts';
 import { getEstimateById } from './estimates.ts';
+import { syncSprintActivities } from './projects.ts';
 
 export class CrError extends Error {}
 
@@ -134,6 +135,7 @@ export function decideChangeRequest(db: Db, projectId: number, id: number, decis
 		tx.insert(projectFeatures)
 			.values({ projectId, changeRequestId: id, baselineStart: start, baselineEnd: end, planStart: start, planEnd: end })
 			.run();
+		syncSprintActivities(tx, projectId);
 	});
 	return impact;
 }

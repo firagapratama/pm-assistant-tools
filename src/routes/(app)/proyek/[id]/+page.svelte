@@ -232,7 +232,7 @@
 {#if tab === 'jadwal'}
 	<section aria-label="Jadwal">
 		<div class="alat">
-			<p class="ringkas">Klik aktivitas untuk mengubahnya. Progres fitur ada di tabel di bawah.</p>
+			<p class="ringkas">Klik aktivitas untuk mengubahnya. Progres fitur ada di tabel di bawah; aktivitas Sprint N selesai otomatis saat semua fitur yang selesai di sprint itu mencapai 100%.</p>
 			<button class="btn kecil" onclick={addActivity}><Plus size={14} strokeWidth={2} aria-hidden="true" /> Tambah aktivitas</button>
 		</div>
 
@@ -279,7 +279,7 @@
 									{/if}
 								</td>
 								<td class="nowrap">
-									<label class="cek">
+									<label class="cek" title={raw.sprintNumber ? 'Dicentang otomatis saat semua fitur yang selesai di sprint ini mencapai 100%' : undefined}>
 										<input type="checkbox" checked={a.done} disabled={busy} onchange={(e) => saveActivity(raw, { done: e.currentTarget.checked })} />
 										{#if a.done}<span class="badge aman">Selesai</span>{:else if a.flag}<span class="badge kritis">Terlambat</span>{:else}<span class="redup kecil">Belum</span>{/if}
 									</label>

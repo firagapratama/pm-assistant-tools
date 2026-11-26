@@ -1,5 +1,5 @@
 // Konversi prospek menjadi proyek (PRD F9): estimasi final menjadi baseline yang dibekukan.
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { WorkCalendar, addDays } from '../calc/calendar.ts';
 import { pertE } from '../calc/pert.ts';
 import { planFeatures } from '../calc/schedule.ts';
@@ -326,12 +326,34 @@ export function updateFeatureSchedule(
 	if (planStart < 1 || planEnd > max) throw new ScheduleError(`Sprint harus antara 1 dan ${max}.`);
 	if (planStart > planEnd) throw new ScheduleError('Sprint mulai tidak boleh setelah sprint selesai.');
 	if (progress < 0 || progress > 100) throw new ScheduleError('Progres harus 0–100%.');
-	const res = db
-		.update(projectFeatures)
-		.set({ planStart, planEnd, progress, updatedAt: new Date() })
-		.where(and(eq(projectFeatures.projectId, projectId), scheduleRow(key)))
-		.run();
-	if (res.changes === 0) throw new ScheduleError('Fitur tidak ada di proyek ini.');
+	db.transaction((tx) => {
+		const res = tx
+			.update(projectFeatures)
+			.set({ planStart, planEnd, progress, updatedAt: new Date() })
+			.where(and(eq(projectFeatures.projectId, projectId), scheduleRow(key)))
+			.run();
+		if (res.changes === 0) throw new ScheduleError('Fitur tidak ada di proyek ini.');
+		syncSprintActivities(tx, projectId);
+	});
+}
+
+/**
+ * Aktivitas "Sprint N" mengikuti fitur yang dijadwalkan selesai di sprint N: selesai bila semuanya 100%.
+ * Sprint tanpa fitur yang berakhir di sana tidak disentuh (tetap dicentang manual).
+ */
+export function syncSprintActivities(db: DbLike, projectId: number) {
+	const rows = db.select({ planEnd: projectFeatures.planEnd, progress: projectFeatures.progress }).from(projectFeatures).where(eq(projectFeatures.projectId, projectId)).all();
+	const acts = db
+		.select({ id: projectActivities.id, sprint: projectActivities.sprintNumber, done: projectActivities.done })
+		.from(projectActivities)
+		.where(and(eq(projectActivities.projectId, projectId), isNotNull(projectActivities.sprintNumber)))
+		.all();
+	for (const a of acts) {
+		const due = rows.filter((r) => r.planEnd === a.sprint);
+		if (!due.length) continue;
+		const done = due.every((r) => r.progress >= 100);
+		if (done !== a.done) db.update(projectActivities).set({ done }).where(eq(projectActivities.id, a.id)).run();
+	}
 }
 
 /** Mengembalikan rencana semua fitur ke baseline; progres tidak diubah. */
@@ -343,6 +365,7 @@ export function resetSchedule(db: Db, projectId: number) {
 				.set({ planStart: r.baselineStart, planEnd: r.baselineEnd })
 				.where(and(eq(projectFeatures.projectId, projectId), r.changeRequestId ? eq(projectFeatures.changeRequestId, r.changeRequestId) : eq(projectFeatures.featureId, r.featureId!)))
 				.run();
+		syncSprintActivities(tx, projectId);
 	});
 }
 
@@ -364,17 +387,18 @@ export interface ActivityInput {
  */
 export function activityTemplate(calendar: WorkCalendar, devSprints: number, totalSprints: number, goLive: string) {
 	// Aktivitas berakhir di hari kerja terakhir, bukan Minggu penutup jendela sprint.
-	const span = (name: string, from: string, to: string): Omit<ActivityInput, 'done'> => ({
+	const span = (name: string, from: string, to: string, sprintNumber: number | null = null): Omit<ActivityInput, 'done'> & { sprintNumber?: number | null } => ({
 		name,
+		sprintNumber,
 		kind: 'aktivitas',
 		startDate: from,
 		endDate: calendar.workdayOnOrBefore(to) < from ? from : calendar.workdayOnOrBefore(to)
 	});
 	const windows = calendar.schedule(totalSprints);
-	const acts: Omit<ActivityInput, 'done'>[] = [
+	const acts: (Omit<ActivityInput, 'done'> & { sprintNumber?: number | null })[] = [
 		{ name: 'Kick-off proyek', kind: 'milestone', startDate: calendar.start, endDate: calendar.start }
 	];
-	for (const w of windows.slice(0, devSprints)) acts.push(span(`Sprint ${w.number}`, w.from, w.to));
+	for (const w of windows.slice(0, devSprints)) acts.push(span(`Sprint ${w.number}`, w.from, w.to, w.number));
 	const stab = windows.slice(devSprints);
 	if (stab.length === 1) {
 		const w = stab[0];

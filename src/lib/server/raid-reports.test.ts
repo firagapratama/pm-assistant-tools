@@ -162,3 +162,27 @@ describe('dashboard kesehatan (F10)', () => {
 		expect(status('2027-07-05').health).toBe('hijau');
 	});
 });
+
+describe('aktivitas sprint otomatis', () => {
+	it('Sprint N dicentang saat semua fitur yang selesai di sprint N 100%, dan batal bila turun lagi', () => {
+		const p = getProject(db, projectId)!;
+		const sprintActs = p.activities.filter((a) => a.sprintNumber !== null);
+		expect(sprintActs.map((a) => a.name)).toEqual(sprintActs.map((a) => `Sprint ${a.sprintNumber}`));
+		const f = p.schedule[0];
+		const act = () => getProject(db, projectId)!.activities.find((a) => a.sprintNumber === f.planEnd)!;
+		const sameSprint = p.schedule.filter((r) => r.planEnd === f.planEnd);
+
+		for (const r of sameSprint) updateFeatureSchedule(db, projectId, r.key, { planStart: r.planStart, planEnd: r.planEnd, progress: 100 });
+		expect(act().done).toBe(true);
+		updateFeatureSchedule(db, projectId, f.key, { planStart: f.planStart, planEnd: f.planEnd, progress: 60 });
+		expect(act().done).toBe(false);
+
+		// Sprint tanpa fitur yang berakhir di sana tetap manual.
+		const empty = getProject(db, projectId)!.activities.find((a) => a.sprintNumber !== null && !p.schedule.some((r) => r.planEnd === a.sprintNumber));
+		if (empty) {
+			saveActivity(db, projectId, empty.id, { name: empty.name, kind: empty.kind, startDate: empty.startDate, endDate: empty.endDate, done: true });
+			updateFeatureSchedule(db, projectId, f.key, { planStart: f.planStart, planEnd: f.planEnd, progress: 10 });
+			expect(getProject(db, projectId)!.activities.find((a) => a.id === empty.id)!.done).toBe(true);
+		}
+	});
+});
