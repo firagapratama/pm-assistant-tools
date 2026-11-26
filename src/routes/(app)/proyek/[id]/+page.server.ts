@@ -9,6 +9,10 @@ import {
 	saveActivity,
 	updateFeatureSchedule
 } from '#lib/server/projects.ts';
+import { todayIso } from '#lib/format/index.ts';
+import { RAID_STATUSES, RAID_TYPES, type RaidStatus, type RaidType } from '#lib/raid.ts';
+import { RaidError, deleteRaid, saveRaid } from '#lib/server/raid.ts';
+import { ReportError, createWeeklyReport, deleteDraftReport, listReports, saveNarrative, sendReport } from '#lib/server/reports.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 function load404(rawId: string) {
@@ -17,7 +21,13 @@ function load404(rawId: string) {
 	return data;
 }
 
-export const load: PageServerLoad = ({ params }) => load404(params.id);
+export const load: PageServerLoad = ({ params }) => {
+	const data = load404(params.id);
+	return { ...data, reports: listReports(db, data.project.id) };
+};
+
+const scale = (v: string | undefined) => (v ? Number(v) : null);
+const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError;
 
 export const actions: Actions = {
 	updateFeature: async ({ params, request }) => {
@@ -59,6 +69,77 @@ export const actions: Actions = {
 		const { project } = load404(params.id);
 		deleteActivity(db, project.id, idOf((await formOf(request)).id));
 		return { message: 'Aktivitas dihapus' };
+	},
+
+	saveRaid: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const f = await formOf(request);
+		try {
+			const id = saveRaid(db, project.id, f.id ? idOf(f.id) : null, {
+				type: (RAID_TYPES as readonly string[]).includes(f.type) ? (f.type as RaidType) : 'risk',
+				description: f.description ?? '',
+				owner: f.owner ?? '',
+				impact: scale(f.impact),
+				likelihood: scale(f.likelihood),
+				mitigation: f.mitigation ?? '',
+				reviewDate: f.reviewDate || null,
+				status: (RAID_STATUSES as readonly string[]).includes(f.status) ? (f.status as RaidStatus) : 'terbuka'
+			});
+			return { raidId: id, message: f.id ? 'Item RAID tersimpan' : 'Item RAID ditambahkan' };
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+	},
+
+	deleteRaid: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		deleteRaid(db, project.id, idOf((await formOf(request)).id));
+		return { message: 'Item RAID dihapus' };
+	},
+
+	createReport: ({ params }) => {
+		const { project } = load404(params.id);
+		return { reportId: createWeeklyReport(db, project.id, todayIso()) };
+	},
+
+	saveNarrative: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const f = await formOf(request);
+		try {
+			saveNarrative(db, project.id, idOf(f.id), {
+				achievements: f.achievements ?? '',
+				obstacles: f.obstacles ?? '',
+				nextWeek: f.nextWeek ?? '',
+				helpNeeded: f.helpNeeded ?? ''
+			});
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { saved: true };
+	},
+
+	sendReport: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		try {
+			sendReport(db, project.id, idOf((await formOf(request)).id), todayIso());
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { message: 'Laporan ditandai terkirim dan diarsipkan' };
+	},
+
+	deleteReport: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		try {
+			deleteDraftReport(db, project.id, idOf((await formOf(request)).id));
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { message: 'Draf laporan dihapus' };
 	},
 
 	resetSchedule: ({ params }) => {

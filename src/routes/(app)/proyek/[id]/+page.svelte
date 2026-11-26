@@ -4,11 +4,14 @@
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { ArrowLeft, Check, FileText, Lock, Plus, RotateCcw, Trash2 } from '@lucide/svelte';
-	import { WorkCalendar, addDays } from '#lib/calc/calendar.ts';
+	import { addDays } from '#lib/calc/calendar.ts';
 	import { pertE } from '#lib/calc/pert.ts';
 	import { toast } from '#lib/components/toast.svelte.ts';
 	import { date, decimal, range, rupiah, rupiahShort, todayIso } from '#lib/format/index.ts';
-	import { maxPlanSprint, weightedProgress } from '#lib/project.ts';
+	import { maxPlanSprint } from '#lib/project.ts';
+	import { HEALTH_LABEL, projectStatus, statusInputFrom } from '#lib/project-status.ts';
+	import RaidTab from './RaidTab.svelte';
+	import ReportsTab from './ReportsTab.svelte';
 	import Gantt, { type GanttActivity } from './Gantt.svelte';
 	import type { PageProps } from './$types';
 
@@ -17,8 +20,6 @@
 	let pr = $derived(data.project);
 	let b = $derived(pr.baseline);
 	let est = $derived(data.estimate);
-	// Kalender yang sama dengan baseline (salinan libur di estimasi final).
-	let calendar = $derived(new WorkCalendar(pr.startDate, est.draft.settings, est.holidays));
 	const today = todayIso();
 	const DAY = 86_400_000;
 	const STATUS = { aktif: 'Aktif', selesai: 'Selesai', ditunda: 'Ditunda' } as const;
@@ -27,11 +28,24 @@
 	// ── Tab (disimpan di URL agar tautan dan muat ulang tetap di tab yang sama) ──
 	const TABS = [
 		{ id: 'jadwal', label: 'Jadwal' },
+		{ id: 'raid', label: 'RAID' },
+		{ id: 'laporan', label: 'Laporan' },
 		{ id: 'baseline', label: 'Baseline & tim' },
-		{ id: 'risiko', label: 'Risiko & asumsi' },
 		{ id: 'lingkup', label: 'Ruang lingkup' }
 	] as const;
 	let tab = $derived(TABS.find((t) => t.id === page.url.searchParams.get('tab'))?.id ?? 'jadwal');
+
+	// ── Status (sumber yang sama dengan laporan mingguan) ──
+	let st = $derived(projectStatus(statusInputFrom(data, today)));
+	// Kalender yang sama dengan baseline (salinan libur di estimasi final).
+	let calendar = $derived(st.calendar);
+	let ganttRows = $derived(st.features);
+	let ganttActivities: GanttActivity[] = $derived(st.activities);
+	let overall = $derived(st.overall);
+	let expected = $derived(st.expected);
+	let lateCount = $derived(st.late.length);
+	let plannedEnd = $derived(st.plannedEnd);
+	let slipDays = $derived(st.slipDays);
 
 	// ── Jadwal ──
 	let sprintDays = $derived(est.draft.settings.sprintWeeks * 7);
@@ -39,34 +53,6 @@
 	let maxSprint = $derived(maxPlanSprint(b.totalSprints));
 	let lastSprint = $derived(Math.max(b.totalSprints, ...data.activities.map((a) => sprintOf(a.endDate))));
 	let windows = $derived(calendar.schedule(lastSprint));
-	/** Fitur dengan tanda terlambat / belum dimulai (untuk tabel progres dan jumlah terlambat). */
-	let ganttRows = $derived(
-		data.schedule.map((r) => {
-			const late = r.progress < 100 && today > calendar.sprint(r.planEnd - 1).to;
-			const notStarted = !late && r.progress === 0 && today >= calendar.sprint(r.planStart - 1).from;
-			return { ...r, flag: late ? ('terlambat' as const) : notStarted ? ('belum-mulai' as const) : null };
-		})
-	);
-	let ganttActivities: GanttActivity[] = $derived(
-		data.activities.map((a) => ({ ...a, flag: !a.done && today > a.endDate ? 'terlambat' : null }))
-	);
-	let overall = $derived(weightedProgress(data.schedule));
-	/** Progres yang seharusnya tercapai hari ini menurut rencana (linear per fitur, ditimbang effort). */
-	let expected = $derived(
-		weightedProgress(
-			data.schedule.map((r) => {
-				const from = Date.parse(calendar.sprint(r.planStart - 1).from);
-				const to = Date.parse(calendar.sprint(r.planEnd - 1).to) + DAY;
-				return { effortHours: r.effortHours, progress: Math.min(100, Math.max(0, ((Date.parse(today) - from) / (to - from)) * 100)) };
-			})
-		)
-	);
-	let lateCount = $derived(ganttRows.filter((r) => r.flag === 'terlambat').length + ganttActivities.filter((a) => a.flag).length);
-	/** Selesai menurut rencana saat ini: aktivitas terakhir atau sprint fitur terakhir. */
-	let plannedEnd = $derived(
-		[...data.activities.map((a) => a.endDate), calendar.endDate(Math.max(0, ...data.schedule.map((r) => r.planEnd)))].sort().at(-1) ?? b.endDate
-	);
-	let slipDays = $derived(Math.round((Date.parse(plannedEnd) - Date.parse(b.endDate)) / DAY));
 	let moved = $derived(data.schedule.some((r) => r.planStart !== r.baselineStart || r.planEnd !== r.baselineEnd));
 	const sprintOptions = $derived(Array.from({ length: maxSprint }, (_, i) => i + 1));
 	const statusOf = (p: number) => (p >= 100 ? 'Selesai' : p > 0 ? 'Berjalan' : 'Belum');
@@ -127,8 +113,6 @@
 	}
 
 	const featureHours = (f: (typeof est.draft.features)[number]) => Object.values(f.efforts).reduce((a, t) => a + pertE(t), 0);
-	let assumptions = $derived(data.raid.filter((r) => r.type === 'assumption'));
-	let risks = $derived(data.raid.filter((r) => r.type === 'risk'));
 </script>
 
 <svelte:head><title>{data.prospect.name} · Proyek · PM Workspace</title></svelte:head>
@@ -153,6 +137,11 @@
 <!-- Ringkasan status: selalu terlihat di semua tab -->
 <section class="panel strip" aria-label="Status proyek">
 	<div>
+		<span class="label">Status</span>
+		<strong><span class="badge kesehatan {st.health}">{HEALTH_LABEL[st.health]}</span></strong>
+		<span class="sub" title={st.reasons.join('\n')}>{st.reasons[0] ?? 'Sesuai rencana'}{st.reasons.length > 1 ? ` (+${st.reasons.length - 1})` : ''}</span>
+	</div>
+	<div>
 		<span class="label">Progres</span>
 		<strong>{decimal(overall, 0)}%</strong>
 		<span class="sub">{today >= pr.startDate ? `rencana hari ini ${decimal(expected, 0)}%` : 'belum dimulai'}</span>
@@ -165,14 +154,9 @@
 		</span>
 	</div>
 	<div>
-		<span class="label">Terlambat</span>
-		<strong class:kritis-teks={lateCount > 0}>{lateCount}</strong>
-		<span class="sub">fitur dan aktivitas</span>
-	</div>
-	<div>
-		<span class="label">Harga baseline</span>
-		<strong>{rupiahShort(b.price)}</strong>
-		<span class="sub">{b.totalSprints} sprint · selesai {date(b.endDate)}</span>
+		<span class="label">Risiko tinggi</span>
+		<strong class:kritis-teks={st.highRisks.length > 0}>{st.highRisks.length}</strong>
+		<span class="sub">{st.overdueReviews.length ? `${st.overdueReviews.length} lewat tanggal tinjau` : `${lateCount} item terlambat`}</span>
 	</div>
 </section>
 
@@ -186,7 +170,8 @@
 		>
 			{t.label}
 			{#if t.id === 'jadwal' && lateCount > 0}<span class="titik" aria-label="{lateCount} terlambat"></span>{/if}
-			{#if t.id === 'risiko' && data.raid.length}<span class="jumlah">{data.raid.length}</span>{/if}
+			{#if t.id === 'raid' && st.highRisks.length}<span class="titik" aria-label="{st.highRisks.length} risiko tinggi"></span>{/if}
+			{#if t.id === 'laporan' && data.reports.some((r) => !r.sentAt)}<span class="jumlah">draf</span>{/if}
 		</a>
 	{/each}
 </nav>
@@ -284,7 +269,7 @@
 							{@const busy = saving === `f${r.featureId}`}
 							<tr id="baris-f{r.featureId}" class:dipilih={selected === `f${r.featureId}`}>
 								<td><span class="sub">{r.module}</span>{r.name}</td>
-								<td class="redup nowrap">S{r.baselineStart}{r.baselineEnd !== r.baselineStart ? `–${r.baselineEnd}` : ''}</td>
+								<td class="redup nowrap">S{raw.baselineStart}{raw.baselineEnd !== raw.baselineStart ? `–${raw.baselineEnd}` : ''}</td>
 								<td>
 									<select aria-label="Sprint mulai {r.name}" value={r.planStart} disabled={busy} onchange={(e) => saveRow(raw, { planStart: Number(e.currentTarget.value) })}>
 										{#each sprintOptions as n (n)}<option value={n}>S{n}</option>{/each}
@@ -418,24 +403,10 @@
 			</div>
 		</section>
 	</div>
-{:else if tab === 'risiko'}
-	<section aria-label="Risiko dan asumsi">
-		{#if data.raid.length === 0}
-			<p class="kosong">Estimasi final tidak mencantumkan asumsi atau risiko.</p>
-		{:else}
-			<div class="panel raid">
-				{#if risks.length}
-					<h3>Risiko</h3>
-					<ul>{#each risks as r (r.id)}<li>{r.description}</li>{/each}</ul>
-				{/if}
-				{#if assumptions.length}
-					<h3>Asumsi</h3>
-					<ul>{#each assumptions as r (r.id)}<li>{r.description}</li>{/each}</ul>
-				{/if}
-				<p class="field-hint">Dari estimasi final. Penilaian dampak, kemungkinan, dan mitigasi menyusul di RAID log.</p>
-			</div>
-		{/if}
-	</section>
+{:else if tab === 'raid'}
+	<RaidTab items={data.raid} {today} {post} />
+{:else if tab === 'laporan'}
+	<ReportsTab {data} {today} {post} />
 {:else}
 	<section aria-label="Ruang lingkup baseline">
 		<div class="tabel-wadah">
@@ -508,6 +479,19 @@
 	}
 	.kritis-teks {
 		color: var(--kritis);
+	}
+	.kesehatan {
+		font-size: var(--teks-isi);
+		padding: 2px var(--jarak-3);
+	}
+	.kesehatan.hijau { background: var(--aman-tipis); color: var(--aman); }
+	.kesehatan.kuning { background: var(--waspada-tipis); color: var(--waspada); }
+	.kesehatan.kuning::before { background: var(--waspada-ikon); }
+	.kesehatan.merah { background: var(--kritis-tipis); color: var(--kritis); }
+	.strip .sub {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.tab {
 		display: flex;
@@ -667,24 +651,6 @@
 	.judul-bagian {
 		font-size: var(--teks-isi);
 		margin-bottom: var(--jarak-3);
-	}
-	.raid {
-		padding: var(--jarak-4) var(--jarak-6);
-		max-width: 760px;
-	}
-	.raid h3 {
-		font-size: var(--teks-kecil);
-		color: var(--tinta-2);
-	}
-	.raid ul {
-		margin: var(--jarak-1) 0 var(--jarak-4);
-		padding-left: 1.1em;
-	}
-	.raid li + li {
-		margin-top: 2px;
-	}
-	.raid .field-hint {
-		margin: 0;
 	}
 	.nowrap {
 		white-space: nowrap;

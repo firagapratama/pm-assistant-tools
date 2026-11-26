@@ -5,6 +5,7 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-or
 import type { EstimateSettings, Holiday, OverheadItem, Priority } from '../../calc';
 import { PROSPECT_STATUSES } from '../../labels.ts';
 import type { ProjectBaseline } from '../../project.ts';
+import type { ReportData } from '../../report.ts';
 
 const createdAt = () =>
 	integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`);
@@ -236,7 +237,8 @@ export const raidItems = sqliteTable('raid_items', {
 	mitigation: text('mitigation').notNull().default(''),
 	reviewDate: text('review_date'),
 	status: text('status', { enum: ['terbuka', 'dipantau', 'selesai'] }).notNull().default('terbuka'),
-	createdAt: createdAt()
+	createdAt: createdAt(),
+	updatedAt: integer('updated_at', { mode: 'timestamp' })
 });
 
 /** Jadwal dan progres fitur baseline di proyek berjalan (Gantt). Sprint 1-based, inklusif. */
@@ -269,3 +271,24 @@ export const projectActivities = sqliteTable('project_activities', {
 	done: integer('done', { mode: 'boolean' }).notNull().default(false),
 	sortOrder: integer('sort_order').notNull().default(0)
 });
+
+/** Laporan status mingguan (F14). Data otomatis dibekukan di `snapshot` saat dikirim. */
+export const statusReports = sqliteTable(
+	'status_reports',
+	{
+		id: integer('id').primaryKey(),
+		projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+		/** Senin awal minggu (YYYY-MM-DD). */
+		periodStart: text('period_start').notNull(),
+		periodEnd: text('period_end').notNull(),
+		achievements: text('achievements').notNull().default(''),
+		obstacles: text('obstacles').notNull().default(''),
+		nextWeek: text('next_week').notNull().default(''),
+		helpNeeded: text('help_needed').notNull().default(''),
+		/** null selama draf; diisi saat ditandai terkirim. */
+		snapshot: text('snapshot', { mode: 'json' }).$type<ReportData>(),
+		sentAt: integer('sent_at', { mode: 'timestamp' }),
+		createdAt: createdAt()
+	},
+	(t) => [uniqueIndex('status_reports_week').on(t.projectId, t.periodStart)]
+);
