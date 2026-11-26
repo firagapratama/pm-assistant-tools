@@ -116,6 +116,25 @@
 		</div>
 	</section>
 
+	{#if c.decisions?.length}
+		<section>
+			<h2>Keputusan minggu ini</h2>
+			<table>
+				<thead><tr><th>No.</th><th>Tanggal</th><th>Keputusan</th><th>Oleh</th></tr></thead>
+				<tbody>
+					{#each c.decisions as d, i (i)}
+						<tr>
+							<td>{d.label}</td>
+							<td>{date(d.date)}</td>
+							<td>{d.decision}{d.supersedes ? ` (menggantikan ${d.supersedes})` : ''}</td>
+							<td>{d.decidedBy || '–'}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</section>
+	{/if}
+
 	{#if c.changeRequests?.length || c.scope?.count}
 		<section>
 			<h2>Change request</h2>

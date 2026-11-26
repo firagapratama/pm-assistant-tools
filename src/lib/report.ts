@@ -40,6 +40,8 @@ export interface ReportData {
 	newRaidThisWeek: number;
 	/** CR yang menunggu keputusan, diajukan, atau diputuskan di periode ini (laporan lama: tidak ada). */
 	changeRequests?: { label: string; title: string; status: CrStatus; effortHours: number; sprints: number; price: number; decisionDate: string | null }[];
+	/** Keputusan bertanggal di periode ini (laporan lama: tidak ada). */
+	decisions?: { label: string; decision: string; decidedBy: string; date: string; supersedes: string | null }[];
 	/** Akumulasi perubahan scope yang disetujui sejak baseline. */
 	scope?: { count: number; effortPct: number; sprints: number; price: number };
 }
@@ -97,6 +99,16 @@ export function buildReport(input: StatusInput, period: { start: string; end: st
 				sprints: c.effect.sprints,
 				price: c.effect.price,
 				decisionDate: c.decisionDate
+			})),
+		decisions: (input.decisions ?? [])
+			.filter((d) => isoIn(d.date))
+			.toSorted((a, b) => a.number - b.number)
+			.map((d) => ({
+				label: `K-${d.number}`,
+				decision: d.decision,
+				decidedBy: d.decidedBy,
+				date: d.date,
+				supersedes: d.supersedesNumber === null ? null : `K-${d.supersedesNumber}`
 			})),
 		scope: { count: s.scope.count, effortPct: s.scope.effortPct, sprints: s.scope.sprints, price: s.scope.price }
 	};

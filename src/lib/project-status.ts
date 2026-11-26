@@ -23,6 +23,8 @@ export interface StatusInput {
 	raid: (RaidLike & { id: number; description: string; owner: string; createdAt: Date })[];
 	/** Change request; yang disetujui menggeser target selesai (baseline tetap). */
 	changeRequests?: { number: number; title: string; status: CrStatus; requestDate: string; decisionDate: string | null; impact: CrImpact | null; effect: CrImpact }[];
+	/** Decision log (F12), untuk laporan mingguan. */
+	decisions?: { number: number; date: string; decision: string; decidedBy: string; supersedesNumber: number | null }[];
 	/** Status yang ditetapkan PM; menggantikan status otomatis. */
 	override?: { health: Health; reason: string } | null;
 	today: string;
@@ -135,6 +137,7 @@ export function statusInputFrom(
 		activities: StatusInput['activities'];
 		raid: StatusInput['raid'];
 		changeRequests?: StatusInput['changeRequests'];
+		decisions?: StatusInput['decisions'];
 	},
 	today: string
 ): StatusInput {
@@ -147,6 +150,7 @@ export function statusInputFrom(
 		activities: p.activities,
 		raid: p.raid,
 		changeRequests: p.changeRequests,
+		decisions: p.decisions,
 		override: p.project.healthOverride ? { health: p.project.healthOverride, reason: p.project.healthReason ?? '' } : null,
 		today
 	};

@@ -35,6 +35,7 @@
 			activities: StatusInput['activities'];
 			raid: StatusInput['raid'];
 			changeRequests: StatusInput['changeRequests'];
+			decisions: StatusInput['decisions'];
 		};
 		today: string;
 		post: (action: string, fields: Record<string, string | number | boolean>) => Promise<Record<string, unknown> | null | undefined>;
@@ -172,6 +173,14 @@
 						{content.openRaid.filter((r) => r.severity === 'tinggi').length} risiko tinggi terbuka · {content.openRaid.length} item terbuka ·
 						{content.newRaidThisWeek} baru minggu ini
 					</dd>
+					{#if content.decisions?.length}
+						<dt>Keputusan</dt>
+						<dd>
+							{#each content.decisions as d, i (i)}
+								<span class="blok">{d.label} {d.decision}{d.supersedes ? ` (menggantikan ${d.supersedes})` : ''}</span>
+							{/each}
+						</dd>
+					{/if}
 					{#if content.changeRequests?.length || content.scope?.count}
 						<dt>Change request</dt>
 						<dd>
@@ -232,6 +241,9 @@
 </div>
 
 <style>
+	.blok {
+		display: block;
+	}
 	.laporan-tata {
 		display: grid;
 		grid-template-columns: 240px minmax(0, 1fr);

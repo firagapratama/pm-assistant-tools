@@ -11,6 +11,7 @@
 	import { maxPlanSprint } from '#lib/project.ts';
 	import { HEALTHS, HEALTH_LABEL, projectStatus, statusInputFrom, type Health } from '#lib/project-status.ts';
 	import CrTab from './CrTab.svelte';
+	import DecisionTab from './DecisionTab.svelte';
 	import RaidTab from './RaidTab.svelte';
 	import ReportsTab from './ReportsTab.svelte';
 	import Gantt, { type GanttActivity } from './Gantt.svelte';
@@ -31,6 +32,7 @@
 		{ id: 'jadwal', label: 'Jadwal' },
 		{ id: 'raid', label: 'RAID' },
 		{ id: 'cr', label: 'Change request' },
+		{ id: 'keputusan', label: 'Keputusan' },
 		{ id: 'laporan', label: 'Laporan' },
 		{ id: 'baseline', label: 'Baseline & tim' },
 		{ id: 'lingkup', label: 'Ruang lingkup' }
@@ -456,6 +458,8 @@
 	</div>
 {:else if tab === 'raid'}
 	<RaidTab items={data.raid} {today} {post} />
+{:else if tab === 'keputusan'}
+	<DecisionTab items={data.decisions} {today} {post} />
 {:else if tab === 'cr'}
 	<CrTab
 		items={data.changeRequests}

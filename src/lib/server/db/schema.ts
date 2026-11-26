@@ -1,7 +1,7 @@
 // Skema PRD bagian 8 (Fase 1 + kebutuhan F9) dan tabel autentikasi.
 // Rupiah = integer, persentase = basis poin, effort = jam (real).
 import { sql } from 'drizzle-orm';
-import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import type { EstimateSettings, Holiday, OverheadItem, Priority } from '../../calc';
 import { PROSPECT_STATUSES } from '../../labels.ts';
 import type { ProjectBaseline } from '../../project.ts';
@@ -269,6 +269,30 @@ export const changeRequests = sqliteTable(
 		createdAt: createdAt()
 	},
 	(t) => [uniqueIndex('change_requests_number').on(t.projectId, t.number)]
+);
+
+/** Decision log (F12). Tidak dihapus; pembatalan = keputusan baru yang merujuk keputusan lama. */
+export const decisions = sqliteTable(
+	'decisions',
+	{
+		id: integer('id').primaryKey(),
+		projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+		/** Nomor urut per proyek (K-1, K-2, ...). */
+		number: integer('number').notNull(),
+		/** YYYY-MM-DD */
+		date: text('date').notNull(),
+		decision: text('decision').notNull(),
+		decidedBy: text('decided_by').notNull().default(''),
+		reason: text('reason').notNull().default(''),
+		alternatives: text('alternatives').notNull().default(''),
+		impact: text('impact').notNull().default(''),
+		/** Tautan dokumen atau notulen rapat. */
+		link: text('link').notNull().default(''),
+		/** Keputusan lama yang dibatalkan/digantikan oleh keputusan ini. */
+		supersedesId: integer('supersedes_id').references((): AnySQLiteColumn => decisions.id),
+		createdAt: createdAt()
+	},
+	(t) => [uniqueIndex('decisions_number').on(t.projectId, t.number), uniqueIndex('decisions_supersedes').on(t.supersedesId)]
 );
 
 /** Jadwal dan progres fitur di proyek berjalan (Gantt). Sprint 1-based, inklusif. */

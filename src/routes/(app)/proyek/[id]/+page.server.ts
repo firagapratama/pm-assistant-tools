@@ -14,6 +14,7 @@ import { todayIso } from '#lib/format/index.ts';
 import type { Health } from '#lib/project-status.ts';
 import { RAID_STATUSES, RAID_TYPES, type RaidStatus, type RaidType } from '#lib/raid.ts';
 import { RaidError, deleteRaid, saveRaid } from '#lib/server/raid.ts';
+import { DecisionError, saveDecision } from '#lib/server/decisions.ts';
 import { CrError, decideChangeRequest, deleteChangeRequest, saveChangeRequest } from '#lib/server/change-requests.ts';
 import { ReportError, createWeeklyReport, deleteDraftReport, listReports, saveNarrative, sendReport } from '#lib/server/reports.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -30,7 +31,7 @@ export const load: PageServerLoad = ({ params }) => {
 };
 
 const scale = (v: string | undefined) => (v ? Number(v) : null);
-const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError || e instanceof CrError;
+const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError || e instanceof CrError || e instanceof DecisionError;
 
 function effortsOf(raw: string | undefined) {
 	try {
@@ -207,6 +208,27 @@ export const actions: Actions = {
 			throw e;
 		}
 		return { message: 'Change request dihapus' };
+	},
+
+	saveDecision: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		try {
+			const id = saveDecision(db, project.id, form.id ? idOf(form.id) : null, {
+				date: form.date ?? '',
+				decision: form.decision ?? '',
+				decidedBy: form.decidedBy ?? '',
+				reason: form.reason ?? '',
+				alternatives: form.alternatives ?? '',
+				impact: form.impact ?? '',
+				link: form.link ?? '',
+				supersedesId: form.supersedesId ? idOf(form.supersedesId) : null
+			});
+			return { message: 'Keputusan disimpan', decisionId: id };
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
 	},
 
 	setHealth: async ({ params, request }) => {
