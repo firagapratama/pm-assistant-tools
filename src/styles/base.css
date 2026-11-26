@@ -172,6 +172,31 @@ input.angka {
 }
 
 /* Input dengan awalan/akhiran (Rp, %, satuan, ikon). */
+/* ── Keadaan terkunci (design.md 6.12) ──
+   Di dalam .terkunci (estimasi final), isian yang dinonaktifkan tampil sebagai teks biasa, bukan kotak abu-abu,
+   agar tetap mudah dibaca dan dicetak. */
+.terkunci :is(input:not([type='checkbox'], [type='radio'], [type='hidden']), select, textarea):disabled {
+	padding-left: 0;
+	border-color: transparent;
+	background: transparent;
+	box-shadow: none;
+	color: var(--tinta);
+	-webkit-text-fill-color: var(--tinta);
+	opacity: 1;
+	resize: none;
+	cursor: default;
+}
+.terkunci select:disabled {
+	background-image: none;
+}
+.terkunci :disabled::placeholder {
+	color: transparent;
+}
+.terkunci .input-grup:has(:disabled) {
+	border-color: transparent;
+	background: transparent;
+}
+
 .input-grup {
 	display: flex;
 	align-items: center;

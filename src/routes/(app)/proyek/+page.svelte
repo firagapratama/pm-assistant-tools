@@ -28,192 +28,186 @@
 		<a class="btn" href="/prospek">Lihat prospek</a>
 	</div>
 {:else}
-	{#if active.length}
-		<section class="panel ringkas" aria-label="Ringkasan proyek aktif">
-			<div>
-				<span class="label">Proyek aktif</span>
-				<strong>{active.length}</strong>
-			</div>
-			{#each [...HEALTHS].reverse() as h (h)}
-				<div>
-					<span class="label"><span class="badge {HEALTH_BADGE[h]}">{HEALTH_LABEL[h]}</span></span>
-					<strong>{count(h)}</strong>
-				</div>
-			{/each}
-			<div>
-				<span class="label">Risiko tinggi terbuka</span>
-				<strong>{active.reduce((a, p) => a + p.highRisks, 0)}</strong>
-			</div>
-			<div>
-				<span class="label">Blocker aktif</span>
-				<strong>{active.reduce((a, p) => a + p.blockers, 0)}</strong>
-			</div>
-			<div>
-				<span class="label">CR menunggu keputusan</span>
-				<strong>{active.reduce((a, p) => a + p.pendingCr, 0)}</strong>
-			</div>
-		</section>
-	{/if}
+	<p class="ringkas">
+		<span>
+			{#each [...HEALTHS].reverse() as h, i (h)}{i ? ' · ' : ''}<strong>{count(h)}</strong> {HEALTH_LABEL[h]}{/each}
+			<span class="redup">dari {active.length} proyek aktif</span>
+		</span>
+		<span class="redup">
+			{active.reduce((a, p) => a + p.highRisks, 0)} risiko tinggi · {active.reduce((a, p) => a + p.blockers, 0)} blocker ·
+			{active.reduce((a, p) => a + p.pendingCr, 0)} CR menunggu
+		</span>
+	</p>
 
-	<div class="tabel-wadah">
-		<table>
-			<thead>
-				<tr>
-					<th>Proyek</th>
-					<th>Status</th>
-					<th>Progres</th>
-					<th class="angka">Sprint</th>
-					<th>Selesai (rencana)</th>
-					<th class="angka">Risiko tinggi</th>
-					<th class="angka">Blocker</th>
-					<th>Change request</th>
-					<th>Tenggat terdekat</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each data.projects as p (p.id)}
-					<tr class:nonaktif={p.status !== 'aktif'}>
-						<td class="nama">
-							<a href="/proyek/{p.id}">{p.name}</a>
-							<span class="sub">{[p.client, p.status !== 'aktif' ? STATUS[p.status] : ''].filter(Boolean).join(' · ')}</span>
-						</td>
-						<td class="status">
-							<span class="badge {HEALTH_BADGE[p.health]}">{HEALTH_LABEL[p.health]}{p.manual ? ' · manual' : ''}</span>
-							<span class="sub" title={p.reasons.join('\n')}>{p.reasons[0] ?? 'Sesuai rencana'}{p.reasons.length > 1 ? ` (+${p.reasons.length - 1})` : ''}</span>
-						</td>
-						<td class="progres">
-							{#if p.startDate > data.today}
-								<span class="sub">mulai {date(p.startDate)}</span>
-							{:else}
-								<div class="bar" aria-hidden="true">
-									<span class="isi" style:width="{p.overall}%"></span>
-									<span class="rencana" style:left="{p.expected}%"></span>
-								</div>
-								<span class="sub"><strong>{decimal(p.overall, 0)}%</strong> · rencana {decimal(p.expected, 0)}%</span>
-							{/if}
-						</td>
-						<td class="angka">{p.currentSprint}/{p.totalSprints}</td>
-						<td>
-							{date(p.plannedEnd)}
-							{#if p.slipDays > 0}<span class="sub waspada-teks">+{p.slipDays} hari</span>{/if}
-						</td>
-						<td class="angka" class:kritis-teks={p.highRisks > 0}>{p.highRisks}</td>
-						<td class="angka" class:waspada-teks={p.blockers > 0}>{p.blockers}</td>
-						<td class="nowrap">
-							{#if p.pendingCr}<span class="waspada-teks">{p.pendingCr} menunggu</span>{/if}
-							<span class="sub">{p.scopePct ? `${p.scopePct > 0 ? '+' : '−'}${decimal(Math.abs(p.scopePct), 1)}% effort dari baseline` : p.pendingCr ? '' : '—'}</span>
-						</td>
-						<td>
-							{#if p.nextDue}
-								{p.nextDue.name}
-								<span class="sub">{p.nextDue.kind === 'milestone' ? 'Milestone · ' : ''}{date(p.nextDue.date)}</span>
-							{:else}
-								<span class="sub">—</span>
-							{/if}
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</div>
-	<p class="catatan">Status otomatis: Merah bila selesai mundur &gt; 20% atau ada risiko tinggi tanpa mitigasi; Kuning bila mundur 10–20%, ada yang terlambat, progres &gt; 15 poin di bawah rencana, atau blocker (isu terbuka) &gt; 2 hari. Garis tipis pada bar progres = rencana hari ini.</p>
+	<ul class="daftar">
+		{#each data.projects as p (p.id)}
+			{@const meta = [
+				p.nextDue && `Tenggat: ${p.nextDue.kind === 'milestone' ? '◆ ' : ''}${p.nextDue.name} ${date(p.nextDue.date)}`,
+				p.highRisks && `${p.highRisks} risiko tinggi`,
+				p.blockers && `${p.blockers} blocker`,
+				p.pendingCr && `${p.pendingCr} CR menunggu`,
+				p.scopePct && `scope ${p.scopePct > 0 ? '+' : '−'}${decimal(Math.abs(p.scopePct), 0)}% dari CR`
+			].filter(Boolean)}
+			<li class:nonaktif={p.status !== 'aktif'}>
+				<span class="status">
+					<span class="badge {HEALTH_BADGE[p.health]}">{HEALTH_LABEL[p.health]}</span>
+				</span>
+				<span class="nama">
+					<a href="/proyek/{p.id}">{p.name}</a>
+					<span class="redup">{[p.client, p.status !== 'aktif' ? STATUS[p.status] : ''].filter(Boolean).join(' · ')}</span>
+				</span>
+				<span class="jadwal">
+					<span>Sprint {p.currentSprint}/{p.totalSprints}</span>
+					<span class:waspada-teks={p.slipDays > 0}>{p.slipDays > 0 ? `Proyeksi ${date(p.plannedEnd)}` : 'Sesuai rencana'}</span>
+				</span>
+				<span class="alasan">
+					{p.manual ? p.reasons[0] : (p.reasons[0] ?? '—')}{p.reasons.length > 1 ? ` (+${p.reasons.length - 1})` : ''}
+					{#if meta.length}<span class="meta">{meta.join(' · ')}</span>{/if}
+				</span>
+				<span class="progres">
+					{#if p.startDate > data.today}
+						<span class="redup">mulai {date(p.startDate)}</span>
+					{:else}
+						<span class="bar" aria-hidden="true">
+							<span class="isi" style:width="{p.overall}%"></span>
+							<span class="rencana" style:left="{p.expected}%"></span>
+						</span>
+						<span class="angka-progres"><strong>{decimal(p.overall, 0)}%</strong> <span class="redup">(rencana {decimal(p.expected, 0)}%)</span></span>
+					{/if}
+				</span>
+			</li>
+		{/each}
+	</ul>
+	<p class="catatan">
+		Status otomatis: Merah bila proyeksi selesai mundur &gt; 20% atau ada risiko tinggi tanpa mitigasi; Kuning bila mundur 10–20%, ada yang
+		terlambat, progres &gt; 15 poin di bawah rencana, atau blocker (isu terbuka) &gt; 2 hari. Garis tegak pada bilah progres = rencana hari ini.
+	</p>
 {/if}
 
 <style>
 	.ringkas {
-		display: grid;
-		grid-template-columns: repeat(7, 1fr);
-		margin-bottom: var(--jarak-6);
-	}
-	.ringkas > div {
-		display: grid;
-		gap: var(--jarak-1);
-		padding: var(--jarak-4) var(--jarak-6);
-		border-right: 1px solid var(--garis);
-	}
-	.ringkas > div:last-child {
-		border-right: 0;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: var(--jarak-2) var(--jarak-6);
+		margin: 0 0 var(--jarak-4);
+		padding-bottom: var(--jarak-3);
+		border-bottom: 1px solid var(--garis-kuat, var(--garis));
 	}
 	.ringkas strong {
-		font-size: var(--teks-h2);
 		font-variant-numeric: tabular-nums;
 	}
-	.label {
-		font-size: var(--teks-kecil);
-		color: var(--tinta-2);
+	.daftar {
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
-	tbody tr {
+	.daftar li {
 		position: relative;
+		display: grid;
+		grid-template-columns: 96px minmax(0, 1fr) minmax(260px, auto);
+		grid-template-areas: 'status nama jadwal' '. alasan progres';
+		gap: var(--jarak-1) var(--jarak-4);
+		align-items: baseline;
+		padding: var(--jarak-4) var(--jarak-2);
+		border-bottom: 1px solid var(--garis);
 	}
-	tr.nonaktif {
+	.daftar li:hover {
+		background: var(--permukaan);
+	}
+	.daftar li.nonaktif {
 		opacity: 0.65;
+	}
+	.status {
+		grid-area: status;
+	}
+	.nama {
+		grid-area: nama;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 var(--jarak-2);
+		align-items: baseline;
 	}
 	.nama a {
 		color: var(--tinta);
 		font-weight: 500;
 		text-decoration: none;
 	}
+	/* Seluruh baris dapat diklik (design.md 5.5). */
 	.nama a::after {
 		content: '';
 		position: absolute;
 		inset: 0;
 	}
-	tbody tr:hover .nama a {
+	li:hover .nama a {
 		color: var(--nila);
 	}
-	.sub {
-		display: block;
+	.jadwal {
+		grid-area: jadwal;
+		display: flex;
+		justify-content: space-between;
+		gap: var(--jarak-4);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.alasan {
+		grid-area: alasan;
 		font-size: var(--teks-kecil);
 		color: var(--tinta-2);
 	}
-	.status .sub {
-		max-width: 260px;
-		margin-top: 2px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	.meta {
+		display: block;
 	}
 	.progres {
-		min-width: 140px;
+		grid-area: progres;
+		display: flex;
+		align-items: center;
+		gap: var(--jarak-3);
+		font-size: var(--teks-kecil);
+		white-space: nowrap;
 	}
 	.bar {
 		position: relative;
-		height: 6px;
-		margin: 4px 0;
-		border-radius: 3px;
-		background: var(--garis);
+		flex: 1;
+		min-width: 100px;
+		height: 8px;
+		border-radius: 2px;
+		background: var(--nila-tipis);
 	}
 	.bar .isi {
 		position: absolute;
 		inset: 0 auto 0 0;
-		border-radius: 3px;
+		border-radius: 2px;
 		background: var(--nila);
 	}
+	/* Posisi rencana hari ini: garis tegak 1,5px. */
 	.bar .rencana {
 		position: absolute;
 		top: -3px;
 		bottom: -3px;
-		width: 0;
-		border-left: 2px dashed var(--tinta-2);
+		width: 1.5px;
+		margin-left: -0.75px;
+		background: var(--tinta);
 	}
-	.nowrap {
-		white-space: nowrap;
+	.angka-progres strong {
+		font-variant-numeric: tabular-nums;
+	}
+	.redup {
+		color: var(--tinta-2);
+		font-size: var(--teks-kecil);
 	}
 	.waspada-teks {
 		color: var(--waspada);
-	}
-	.kritis-teks {
-		color: var(--kritis);
-		font-weight: 500;
 	}
 	.catatan {
 		margin-top: var(--jarak-4);
 		font-size: var(--teks-kecil);
 		color: var(--tinta-2);
 	}
-	@media (max-width: 900px) {
-		.ringkas {
-			grid-template-columns: repeat(3, 1fr);
+	@media (max-width: 760px) {
+		.daftar li {
+			grid-template-columns: 1fr;
+			grid-template-areas: 'status' 'nama' 'jadwal' 'alasan' 'progres';
 		}
 	}
 </style>

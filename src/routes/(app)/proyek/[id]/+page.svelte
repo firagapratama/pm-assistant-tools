@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { deserialize } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { ArrowLeft, Check, FileText, Lock, Plus, RotateCcw, Trash2 } from '@lucide/svelte';
@@ -29,15 +29,14 @@
 
 	// ── Tab (disimpan di URL agar tautan dan muat ulang tetap di tab yang sama) ──
 	const TABS = [
+		{ id: 'ringkasan', label: 'Ringkasan' },
 		{ id: 'jadwal', label: 'Jadwal' },
 		{ id: 'raid', label: 'RAID' },
-		{ id: 'cr', label: 'Change request' },
 		{ id: 'keputusan', label: 'Keputusan' },
-		{ id: 'laporan', label: 'Laporan' },
-		{ id: 'baseline', label: 'Baseline & tim' },
-		{ id: 'lingkup', label: 'Ruang lingkup' }
+		{ id: 'cr', label: 'Change request' },
+		{ id: 'laporan', label: 'Laporan' }
 	] as const;
-	let tab = $derived(TABS.find((t) => t.id === page.url.searchParams.get('tab'))?.id ?? 'jadwal');
+	let tab = $derived(TABS.find((t) => t.id === page.url.searchParams.get('tab'))?.id ?? 'ringkasan');
 
 	// ── Status (sumber yang sama dengan laporan mingguan) ──
 	let st = $derived(projectStatus(statusInputFrom(data, today)));
@@ -60,7 +59,6 @@
 	let lastSprint = $derived(Math.max(b.totalSprints, ...data.activities.map((a) => sprintOf(a.endDate))));
 	let windows = $derived(calendar.schedule(lastSprint));
 	let moved = $derived(data.schedule.some((r) => r.planStart !== r.baselineStart || r.planEnd !== r.baselineEnd));
-	const sprintOptions = $derived(Array.from({ length: maxSprint }, (_, i) => i + 1));
 	const statusOf = (p: number) => (p >= 100 ? 'Selesai' : p > 0 ? 'Berjalan' : 'Belum');
 
 	let editOpen = $state(false);
@@ -133,6 +131,13 @@
 		if (ok) healthOpen = false;
 	}
 
+	async function reportThisWeek() {
+		saving = 'laporan';
+		const res = await post('createReport', {});
+		saving = null;
+		if (res) await goto('?tab=laporan');
+	}
+
 	const featureHours = (f: (typeof est.draft.features)[number]) => Object.values(f.efforts).reduce((a, t) => a + pertE(t), 0);
 </script>
 
@@ -144,73 +149,20 @@
 	<div>
 		<div class="judul">
 			<h1>{data.prospect.name}</h1>
-			<span class="badge" class:aman={pr.status === 'aktif'}>{STATUS[pr.status]}</span>
+			<span class="badge kesehatan {st.health}">{HEALTH_LABEL[st.health]}{#if st.override}<span class="manual"> · Ditetapkan PM</span>{/if}</span>
+			{#if pr.status !== 'aktif'}<span class="badge">{STATUS[pr.status]}</span>{/if}
 		</div>
 		<p>
-			{[data.prospect.client, `mulai ${date(pr.startDate)}`].filter(Boolean).join(' · ')} ·
-			<a href="/prospek/{data.prospect.id}">prospek</a> ·
-			<a href="/prospek/{data.prospect.id}/estimasi/{b.estimateVersion}">estimasi v{b.estimateVersion}</a>
+			{[data.prospect.client, `Mulai ${date(pr.startDate)}`, `Target selesai ${date(st.targetEnd)}`].filter(Boolean).join(' · ')} · dari
+			<a href="/prospek/{data.prospect.id}/estimasi/{b.estimateVersion}">Estimasi v{b.estimateVersion} ◆</a> ·
+			<a href="/prospek/{data.prospect.id}">prospek</a>
 		</p>
 	</div>
-	<a class="btn" href="/cetak/{est.id}"><FileText size={16} strokeWidth={1.75} aria-hidden="true" /> Ringkasan baseline</a>
+	<div class="kepala-aksi">
+		<a class="btn" href="/cetak/{est.id}"><FileText size={16} strokeWidth={1.75} aria-hidden="true" /> Ringkasan baseline</a>
+		<button class="btn primer" onclick={reportThisWeek} disabled={saving === 'laporan'}>Buat laporan minggu ini</button>
+	</div>
 </header>
-
-<!-- Ringkasan status: selalu terlihat di semua tab -->
-<section class="panel strip" aria-label="Status proyek">
-	<div>
-		<span class="label">Status</span>
-		<strong class="status-baris">
-			<span class="badge kesehatan {st.health}">{HEALTH_LABEL[st.health]}</span>
-			{#if st.override}<span class="manual">manual</span>{/if}
-			<button type="button" class="btn teks kecil" aria-expanded={healthOpen} onclick={() => (healthOpen ? (healthOpen = false) : openHealth())}>Ubah</button>
-		</strong>
-		<span class="sub" title={st.reasons.join('\n')}>{st.reasons[0] ?? 'Sesuai rencana'}{st.reasons.length > 1 ? ` (+${st.reasons.length - 1})` : ''}</span>
-	</div>
-	<div>
-		<span class="label">Progres</span>
-		<strong>{decimal(overall, 0)}%</strong>
-		<span class="sub">{today >= pr.startDate ? `rencana hari ini ${decimal(expected, 0)}%` : 'belum dimulai'}</span>
-	</div>
-	<div>
-		<span class="label">Selesai (rencana)</span>
-		<strong>{date(plannedEnd)}</strong>
-		<span class="sub" class:waspada-teks={slipDays > 0}>
-			{slipDays > 0 ? `${slipDays} hari setelah ${ref}` : slipDays < 0 ? `${-slipDays} hari lebih awal` : `sesuai ${ref}`}
-		</span>
-	</div>
-	<div>
-		<span class="label">Risiko tinggi</span>
-		<strong class:kritis-teks={st.highRisks.length > 0}>{st.highRisks.length}</strong>
-		<span class="sub">{st.overdueReviews.length ? `${st.overdueReviews.length} lewat tanggal tinjau` : `${lateCount} item terlambat`}</span>
-	</div>
-</section>
-
-{#if healthOpen}
-	<form class="panel form-status" onsubmit={saveHealth} aria-label="Ubah status kesehatan">
-		<fieldset class="field">
-			<legend class="field-label">Status</legend>
-			<div class="pilih-status">
-				<label><input type="radio" name="health" value="" bind:group={healthForm.health} /> Otomatis ({HEALTH_LABEL[st.autoHealth]})</label>
-				{#each HEALTHS as h (h)}
-					<label><input type="radio" name="health" value={h} bind:group={healthForm.health} /> {HEALTH_LABEL[h]}</label>
-				{/each}
-			</div>
-		</fieldset>
-		{#if healthForm.health}
-			<label class="field">
-				<span class="field-label">Alasan</span>
-				<textarea rows="2" maxlength="500" required bind:value={healthForm.reason} placeholder="Mengapa status otomatis tidak mewakili kondisi proyek?"></textarea>
-			</label>
-		{/if}
-		{#if st.autoHealth !== 'hijau'}
-			<p class="field-hint">Alasan otomatis: {st.reasons.filter((r) => !r.startsWith('Ditetapkan PM')).join(' · ')}</p>
-		{/if}
-		<div class="aksi-status">
-			<button type="button" class="btn teks" onclick={() => (healthOpen = false)}>Batal</button>
-			<button class="btn" disabled={saving === 'health'}>Simpan status</button>
-		</div>
-	</form>
-{/if}
 
 <nav class="tab" aria-label="Bagian proyek">
 	{#each TABS as t (t.id)}
@@ -309,10 +261,9 @@
 						<tr>
 							<th>Fitur</th>
 							<th>Baseline</th>
-							<th>Mulai</th>
-							<th>Selesai</th>
-							<th>Tanggal</th>
-							<th class="angka">Progres</th>
+							<th>Rencana</th>
+							<th>Selisih</th>
+							<th>Progres</th>
 							<th>Status</th>
 						</tr>
 					</thead>
@@ -323,27 +274,34 @@
 							<tr id="baris-{r.key}" class:dipilih={selected === r.key}>
 								<td><span class="sub">{r.module}</span>{r.name}</td>
 								<td class="redup nowrap">S{raw.baselineStart}{raw.baselineEnd !== raw.baselineStart ? `–${raw.baselineEnd}` : ''}</td>
-								<td>
-									<select aria-label="Sprint mulai {r.name}" value={r.planStart} disabled={busy} onchange={(e) => saveRow(raw, { planStart: Number(e.currentTarget.value) })}>
-										{#each sprintOptions as n (n)}<option value={n}>S{n}</option>{/each}
-									</select>
+								<!-- Tombol −/+ menggeser per sprint (design.md 6.8); mulai melewati selesai ikut menggeser selesai. -->
+								<td class="nowrap" title="{date(calendar.sprint(r.planStart - 1).from)} – {date(calendar.sprint(r.planEnd - 1).to)}">
+									<span class="geser">
+										<button class="btn teks kecil" aria-label="Mulai {r.name} satu sprint lebih awal" disabled={busy || r.planStart <= 1} onclick={() => saveRow(raw, { planStart: r.planStart - 1 })}>−</button>
+										<span class="angka">S{r.planStart}</span>
+										<button class="btn teks kecil" aria-label="Mulai {r.name} satu sprint lebih lambat" disabled={busy || r.planStart >= maxSprint} onclick={() => saveRow(raw, { planStart: r.planStart + 1 })}>+</button>
+									</span>
+									<span class="sampai">s.d.</span>
+									<span class="geser">
+										<button class="btn teks kecil" aria-label="Selesai {r.name} satu sprint lebih awal" disabled={busy || r.planEnd <= 1} onclick={() => saveRow(raw, { planEnd: r.planEnd - 1 })}>−</button>
+										<span class="angka">S{r.planEnd}</span>
+										<button class="btn teks kecil" aria-label="Selesai {r.name} satu sprint lebih lambat" disabled={busy || r.planEnd >= maxSprint} onclick={() => saveRow(raw, { planEnd: r.planEnd + 1 })}>+</button>
+									</span>
+								</td>
+								<td class="nowrap kecil">
+									{#if r.planEnd > raw.baselineEnd}<span class="waspada-teks">+{r.planEnd - raw.baselineEnd} sprint</span>{:else if r.planEnd < raw.baselineEnd}<span class="redup">−{raw.baselineEnd - r.planEnd} sprint</span>{/if}
 								</td>
 								<td>
-									<select aria-label="Sprint selesai {r.name}" value={r.planEnd} disabled={busy} onchange={(e) => saveRow(raw, { planEnd: Number(e.currentTarget.value) })}>
-										{#each sprintOptions as n (n)}<option value={n}>S{n}</option>{/each}
-									</select>
-								</td>
-								<td class="redup nowrap kecil">{date(calendar.sprint(r.planStart - 1).from)} – {date(calendar.sprint(r.planEnd - 1).to)}</td>
-								<td class="angka">
 									<span class="progres">
 										<span class="input-grup kecil-input">
-											<input type="number" min="0" max="100" step="5" class="angka" aria-label="Progres {r.name} dalam persen" value={r.progress} disabled={busy} onchange={(e) => saveRow(raw, { progress: Number(e.currentTarget.value) })} />
+											<input type="number" min="0" max="100" step="10" class="angka" aria-label="Progres {r.name} dalam persen" value={r.progress} disabled={busy} onchange={(e) => saveRow(raw, { progress: Number(e.currentTarget.value) })} />
 											<span class="affix">%</span>
 										</span>
 										{#if r.progress < 100}
 											<button class="btn teks kecil" title="Tandai selesai" aria-label="Tandai {r.name} selesai" disabled={busy} onclick={() => saveRow(raw, { progress: 100 })}><Check size={14} strokeWidth={2} /></button>
 										{/if}
 									</span>
+									<span class="bilah" aria-hidden="true"><span style:width="{r.progress}%"></span></span>
 								</td>
 								<td class="nowrap">
 									{#if r.flag === 'terlambat'}
@@ -365,7 +323,75 @@
 			</p>
 		</details>
 	</section>
-{:else if tab === 'baseline'}
+{:else if tab === 'ringkasan'}
+	<section class="panel status-blok" aria-labelledby="status-judul">
+		<div class="status-kepala">
+			<h2 id="status-judul" class="sr-only">Status kesehatan</h2>
+			<span class="badge kesehatan {st.health}">{HEALTH_LABEL[st.health]}{#if st.override}<span class="manual"> · Ditetapkan PM</span>{/if}</span>
+			<span class="ruang"></span>
+			{#if st.override}<button type="button" class="btn kecil" onclick={() => post('setHealth', { health: '' })}>Kembalikan ke otomatis</button>{/if}
+			<button type="button" class="btn teks kecil" aria-expanded={healthOpen} onclick={() => (healthOpen ? (healthOpen = false) : openHealth())}>Ubah status</button>
+		</div>
+		{#if st.reasons.length}
+			<ul class="alasan">{#each st.reasons as r, i (i)}<li>{r}</li>{/each}</ul>
+		{:else}
+			<p class="alasan">Jadwal dan risiko sesuai rencana.</p>
+		{/if}
+	</section>
+
+	<section class="panel strip" aria-label="Angka proyek">
+		<div>
+			<span class="label">Progres</span>
+			<strong>{decimal(overall, 0)}%</strong>
+			<span class="sub">{today >= pr.startDate ? `rencana hari ini ${decimal(expected, 0)}%` : 'belum dimulai'}</span>
+		</div>
+		<div>
+			<span class="label">Proyeksi selesai</span>
+			<strong>{date(plannedEnd)}</strong>
+			<span class="sub" class:waspada-teks={slipDays > 0}>
+				{slipDays > 0 ? `${slipDays} hari setelah ${ref}` : slipDays < 0 ? `${-slipDays} hari lebih awal` : `sesuai ${ref}`}
+			</span>
+		</div>
+		<div>
+			<span class="label">Risiko tinggi</span>
+			<strong class:kritis-teks={st.highRisks.length > 0}>{st.highRisks.length}</strong>
+			<span class="sub">{st.overdueReviews.length ? `${st.overdueReviews.length} lewat tanggal tinjau` : `${lateCount} item terlambat`}</span>
+		</div>
+		<div>
+			<span class="label">Blocker</span>
+			<strong class:waspada-teks={st.blockers.length > 0}>{st.blockers.length}</strong>
+			<span class="sub">{pendingCr} CR menunggu keputusan</span>
+		</div>
+	</section>
+
+	{#if healthOpen}
+		<form class="panel form-status" onsubmit={saveHealth} aria-label="Ubah status kesehatan">
+			<fieldset class="field">
+				<legend class="field-label">Status</legend>
+				<div class="pilih-status">
+					<label><input type="radio" name="health" value="" bind:group={healthForm.health} /> Otomatis ({HEALTH_LABEL[st.autoHealth]})</label>
+					{#each HEALTHS as h (h)}
+						<label><input type="radio" name="health" value={h} bind:group={healthForm.health} /> {HEALTH_LABEL[h]}</label>
+					{/each}
+				</div>
+			</fieldset>
+			{#if healthForm.health}
+				<label class="field">
+					<span class="field-label">Alasan</span>
+					<textarea rows="2" maxlength="500" required bind:value={healthForm.reason} placeholder="Mengapa status otomatis tidak mewakili kondisi proyek?"></textarea>
+				</label>
+			{/if}
+			{#if st.autoHealth !== 'hijau'}
+				<p class="field-hint">Alasan otomatis: {st.reasons.filter((r) => !r.startsWith('Ditetapkan PM')).join(' · ')}</p>
+			{/if}
+			<div class="aksi-status">
+				<button type="button" class="btn teks" onclick={() => (healthOpen = false)}>Batal</button>
+				<button class="btn" disabled={saving === 'health'}>Simpan status</button>
+			</div>
+		</form>
+	{/if}
+	
+
 	<section class="panel baseline" aria-labelledby="baseline-judul">
 		<div class="panel-kepala">
 			<h2 id="baseline-judul">Baseline</h2>
@@ -395,7 +421,7 @@
 		</div>
 	</section>
 
-	<div class="dua-kolom">
+	<div class="tumpuk">
 		<section aria-labelledby="sprint-judul">
 			<h2 id="sprint-judul" class="judul-bagian">Kalender sprint</h2>
 			<div class="tabel-wadah">
@@ -403,9 +429,10 @@
 					<thead>
 						<tr>
 							<th>Sprint</th>
+							<th>Jenis</th>
 							<th>Tanggal</th>
-							<th class="angka">Hari kerja</th>
-							<th>Libur</th>
+							<th>Hari kerja</th>
+							<th>Libur di sprint ini</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -413,14 +440,18 @@
 							{@const w = calendar.sprint(s.number - 1)}
 							{@const current = s.startDate <= today && today <= s.endDate}
 							<tr class:berjalan={current}>
-								<td>
-									{s.number}
-									{#if s.plan !== 'Pengembangan'}<span class="tanda">{s.plan}</span>{/if}
+								<td class="nowrap">
+									Sprint {s.number}
 									{#if current}<span class="badge final">Berjalan</span>{/if}
 								</td>
+								<td class="redup nowrap">{s.plan === 'Pengembangan' ? 'Pengembangan' : 'Stabilisasi / UAT'}</td>
 								<td class="nowrap">{date(s.startDate)} – {date(s.endDate)}</td>
-								<td class="angka" class:berkurang={w.holidays.length > 0}>
-									{decimal(w.workingDays, 1)} / {decimal(est.draft.settings.workDaysPerSprint, 1)}
+								<td class="nowrap">
+									{#if w.workingDays < est.draft.settings.workDaysPerSprint}
+										<span class="berkurang">{decimal(w.workingDays, 1)} dari {decimal(est.draft.settings.workDaysPerSprint, 1)} hari</span>
+									{:else}
+										{decimal(w.workingDays, 1)} hari
+									{/if}
 								</td>
 								<td class="redup kecil">{[...new Set(w.holidays.map((h) => h.name))].join(', ') || '–'}</td>
 							</tr>
@@ -456,22 +487,9 @@
 			</div>
 		</section>
 	</div>
-{:else if tab === 'raid'}
-	<RaidTab items={data.raid} {today} {post} />
-{:else if tab === 'keputusan'}
-	<DecisionTab items={data.decisions} {today} {post} />
-{:else if tab === 'cr'}
-	<CrTab
-		items={data.changeRequests}
-		ctx={{ draft: est.draft, rates: est.rates, holidays: est.holidays, startDate: pr.startDate }}
-		baseline={b}
-		{today}
-		{post}
-	/>
-{:else if tab === 'laporan'}
-	<ReportsTab {data} {today} {post} />
-{:else}
-	<section aria-label="Ruang lingkup baseline">
+
+	<section class="lingkup" aria-labelledby="lingkup-judul">
+		<h2 id="lingkup-judul">Ruang lingkup baseline</h2>
 		<div class="tabel-wadah">
 			<table>
 				<thead>
@@ -495,6 +513,20 @@
 			</table>
 		</div>
 	</section>
+{:else if tab === 'raid'}
+	<RaidTab items={data.raid} {today} {post} />
+{:else if tab === 'keputusan'}
+	<DecisionTab items={data.decisions} {today} {post} />
+{:else if tab === 'cr'}
+	<CrTab
+		items={data.changeRequests}
+		ctx={{ draft: est.draft, rates: est.rates, holidays: est.holidays, startDate: pr.startDate }}
+		baseline={b}
+		{today}
+		{post}
+	/>
+{:else if tab === 'laporan'}
+	<ReportsTab {data} {today} {post} />
 {/if}
 
 <style>
@@ -551,18 +583,77 @@
 	.kesehatan.kuning { background: var(--waspada-tipis); color: var(--waspada); }
 	.kesehatan.kuning::before { background: var(--waspada-ikon); }
 	.kesehatan.merah { background: var(--kritis-tipis); color: var(--kritis); }
-	.status-baris {
+	.manual {
+		font-weight: 400;
+		color: var(--tinta-2);
+	}
+	.geser {
+		display: inline-flex;
+		align-items: center;
+		height: 30px;
+		border: 1px solid var(--garis);
+		border-radius: var(--radius-kecil);
+		background: var(--permukaan);
+	}
+	.geser .angka {
+		min-width: 28px;
+		text-align: center;
+	}
+	.geser .btn {
+		height: 28px;
+		min-width: 26px;
+		padding: 0 6px;
+		color: var(--tinta-2);
+	}
+	.sampai {
+		margin: 0 var(--jarak-1);
+		color: var(--tinta-2);
+	}
+	.bilah {
+		display: block;
+		height: 4px;
+		margin-top: 4px;
+		border-radius: 2px;
+		background: var(--nila-tipis);
+	}
+	.bilah span {
+		display: block;
+		height: 100%;
+		border-radius: 2px;
+		background: var(--nila);
+	}
+	.kepala-aksi {
+		display: flex;
+		gap: var(--jarak-2);
+	}
+	.status-blok {
+		display: grid;
+		gap: var(--jarak-3);
+		margin-bottom: var(--jarak-4);
+		padding: var(--jarak-4) var(--jarak-6);
+	}
+	.status-kepala {
 		display: flex;
 		align-items: center;
 		gap: var(--jarak-2);
 	}
-	.status-baris .btn {
-		margin-left: auto;
+	.ruang {
+		flex: 1;
 	}
-	.manual {
-		font-size: var(--teks-mini);
-		font-weight: 400;
+	.alasan {
+		margin: 0;
+		padding-left: var(--jarak-4);
 		color: var(--tinta-2);
+	}
+	p.alasan {
+		padding: 0;
+	}
+	.lingkup {
+		margin-top: var(--jarak-8);
+	}
+	.lingkup h2 {
+		margin-bottom: var(--jarak-3);
+		font-size: var(--teks-h3);
 	}
 	.form-status {
 		display: grid;
@@ -757,6 +848,11 @@
 	}
 	.nowrap {
 		white-space: nowrap;
+	}
+	.tumpuk {
+		display: grid;
+		gap: var(--jarak-8);
+		margin-top: var(--jarak-8);
 	}
 	.berkurang {
 		color: var(--waspada);

@@ -158,6 +158,10 @@
 		<div class="judul">
 			<h1>Estimasi v{data.estimate.version}</h1>
 			{#if ed.locked}<span class="badge final">Final</span>{:else}<span class="badge draft">Draft</span>{/if}
+			{#if ed.locked && p.status !== 'deal'}
+				<!-- Versi final terkunci; revisi lewat versi baru (PRD F7, design.md 6.12). -->
+				<form method="POST" action="/prospek/{p.id}?/createEstimate"><button class="btn kecil">Buat versi baru</button></form>
+			{/if}
 		</div>
 		<div class="kanan">
 			<p class="simpan" class:waspada={status === 'invalid'} class:kritis={status === 'gagal'} aria-live="polite">
@@ -182,7 +186,7 @@
 	<p class="meta">{[p.client, `Dibuat ${date(data.estimate.createdAt)}`].filter(Boolean).join(' · ')}</p>
 </div>
 
-<div class="tata">
+<div class="tata" class:terkunci={ed.locked}>
 	<div class="kerja">
 		<div class="tab" role="tablist" aria-label="Bagian estimasi">
 			{#each TABS as t (t.id)}

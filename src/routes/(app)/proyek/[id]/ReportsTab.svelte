@@ -177,7 +177,7 @@
 						<dt>Keputusan</dt>
 						<dd>
 							{#each content.decisions as d, i (i)}
-								<span class="blok">{d.label} {d.decision}{d.supersedes ? ` (menggantikan ${d.supersedes})` : ''}</span>
+								<span class="blok"><a href="?tab=keputusan" class="redup">{d.label}</a> {d.decision}{d.supersedes ? ` (menggantikan ${d.supersedes})` : ''}</span>
 							{/each}
 						</dd>
 					{/if}
@@ -185,7 +185,7 @@
 						<dt>Change request</dt>
 						<dd>
 							{#each content.changeRequests ?? [] as cr, i (i)}
-								{cr.label} {cr.title} <span class="redup">({CR_STATUS_LABEL[cr.status].toLowerCase()})</span>{i < (content.changeRequests?.length ?? 0) - 1 ? ' · ' : ''}
+								<a href="?tab=cr" class="redup">{cr.label}</a> {cr.title} <span class="redup">({CR_STATUS_LABEL[cr.status].toLowerCase()})</span>{i < (content.changeRequests?.length ?? 0) - 1 ? ' · ' : ''}
 							{/each}
 							{#if content.scope?.count}<span class="redup">— total disetujui {content.scope.effortPct > 0 ? '+' : ''}{decimal(content.scope.effortPct, 1)}% effort dari baseline</span>{/if}
 						</dd>

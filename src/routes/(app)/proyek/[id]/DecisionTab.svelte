@@ -49,6 +49,15 @@
 		form = { date: d.date, decision: d.decision, decidedBy: d.decidedBy, reason: d.reason, alternatives: d.alternatives, impact: d.impact, link: d.link, supersedesId: '' };
 	}
 
+	/** Membuka keputusan yang dirujuk (K-n selalu berupa tautan, design.md 6.12). */
+	function jump(n: number) {
+		const target = items.find((d) => d.number === n);
+		if (!target) return;
+		showCancelled = true;
+		editing = null;
+		open = target.id;
+	}
+
 	async function save() {
 		saving = true;
 		const res = await post('saveDecision', { ...(typeof editing === 'number' ? { id: editing } : {}), ...form });
@@ -156,11 +165,14 @@
 						<td class="desk">
 							<button class="buka" aria-expanded={open === d.id} onclick={() => { editing = null; open = open === d.id ? null : d.id; }}>{d.decision}</button>
 							{#if d.decidedBy || d.supersedesNumber}
-								<span class="sub">{[d.decidedBy, d.supersedesNumber ? `menggantikan ${label(d.supersedesNumber)}` : ''].filter(Boolean).join(' · ')}</span>
+								<span class="sub">
+									{d.decidedBy}{d.decidedBy && d.supersedesNumber ? ' · ' : ''}
+									{#if d.supersedesNumber}menggantikan <button class="rujukan" onclick={() => jump(d.supersedesNumber!)}>{label(d.supersedesNumber)}</button>{/if}
+								</span>
 							{/if}
 						</td>
 						<td class="nowrap">
-							{#if cancelled}<span class="badge">Dibatalkan oleh {label(d.supersededByNumber!)}</span>{:else}<span class="badge aman">Berlaku</span>{/if}
+							{#if cancelled}<span class="badge">Dibatalkan oleh <button class="rujukan" onclick={() => jump(d.supersededByNumber!)}>{label(d.supersededByNumber!)}</button></span>{:else}<span class="badge aman">Berlaku</span>{/if}
 						</td>
 						<td class="chev"><span class:putar={open === d.id}><ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" /></span></td>
 					</tr>
@@ -270,6 +282,16 @@
 	tr.dibatalkan .buka {
 		color: var(--tinta-2);
 		text-decoration: line-through;
+	}
+	.rujukan {
+		padding: 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		color: var(--nila);
+		text-decoration: underline;
+		font-variant-numeric: tabular-nums;
+		cursor: pointer;
 	}
 	.buka {
 		padding: 0;

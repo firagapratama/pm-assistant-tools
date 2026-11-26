@@ -173,10 +173,11 @@
 		<div class="panel-kepala"><h2 id="matriks-judul">Matriks risiko</h2></div>
 		<div class="panel-isi">
 			<div class="matriks" role="grid" aria-label="Jumlah risiko terbuka menurut dampak dan kemungkinan">
-				<span class="sumbu-y" aria-hidden="true">Kemungkinan</span>
-				{#each [5, 4, 3, 2, 1] as l (l)}
-					<span class="tik-y" aria-hidden="true">{l}</span>
-					{#each [1, 2, 3, 4, 5] as i (i)}
+				<!-- Baris = dampak (5 di atas), kolom = kemungkinan (design.md 6.9). -->
+				<span class="sumbu-y" aria-hidden="true">Dampak</span>
+				{#each [5, 4, 3, 2, 1] as i (i)}
+					<span class="tik-y" aria-hidden="true">{i}</span>
+					{#each [1, 2, 3, 4, 5] as l (l)}
 						{@const n = countAt(i, l)}
 						{@const sev = severity(i * l)}
 						<button
@@ -192,8 +193,8 @@
 				{/each}
 				<!-- baris sumbu X: dua kolom kosong (label sumbu Y dan angka Y) lalu angka dampak 1–5 -->
 				<span class="tik-x" style:grid-column="3" aria-hidden="true">1</span>
-				{#each [2, 3, 4, 5] as i (i)}<span class="tik-x" aria-hidden="true">{i}</span>{/each}
-				<span class="sumbu-x" aria-hidden="true">Dampak</span>
+				{#each [2, 3, 4, 5] as l (l)}<span class="tik-x" aria-hidden="true">{l}</span>{/each}
+				<span class="sumbu-x" aria-hidden="true">Kemungkinan</span>
 			</div>
 			<p class="legenda">
 				<span><i class="kunci rendah"></i>Rendah &lt; 8</span>
@@ -296,7 +297,7 @@
 <style>
 	.raid-tata {
 		display: grid;
-		grid-template-columns: 300px minmax(0, 1fr);
+		grid-template-columns: 330px minmax(0, 1fr);
 		gap: var(--jarak-6);
 		align-items: start;
 	}
@@ -305,7 +306,7 @@
 	}
 	.matriks {
 		display: grid;
-		grid-template-columns: 18px 14px repeat(5, 1fr);
+		grid-template-columns: 18px 14px repeat(5, 44px);
 		gap: 3px;
 		align-items: center;
 	}
@@ -332,7 +333,8 @@
 		text-align: center;
 	}
 	.sel {
-		aspect-ratio: 1;
+		width: 44px;
+		height: 44px;
 		border: 0;
 		border-radius: 4px;
 		font: inherit;
@@ -341,7 +343,7 @@
 		cursor: pointer;
 		font-variant-numeric: tabular-nums;
 	}
-	.sel.rendah { background: var(--aman-tipis); }
+	.sel.rendah { background: var(--permukaan); box-shadow: inset 0 0 0 1px var(--garis); }
 	.sel.sedang { background: var(--waspada-tipis); }
 	.sel.tinggi { background: var(--kritis-tipis); }
 	.sel.kosong-sel { opacity: 0.55; }
@@ -365,7 +367,7 @@
 		height: 10px;
 		border-radius: 2px;
 	}
-	.kunci.rendah { background: var(--aman-tipis); border: 1px solid var(--aman); }
+	.kunci.rendah { background: var(--permukaan); border: 1px solid var(--garis-kuat, var(--garis)); }
 	.kunci.sedang { background: var(--waspada-tipis); border: 1px solid var(--waspada-ikon); }
 	.kunci.tinggi { background: var(--kritis-tipis); border: 1px solid var(--kritis); }
 	.badge.rendah { background: var(--aman-tipis); color: var(--aman); }

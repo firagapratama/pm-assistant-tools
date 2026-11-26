@@ -364,6 +364,8 @@ Label `--teks-kecil` `--tinta-2` di atas, angka `--teks-angka-besar`, keterangan
 
 ### 6.7 Gantt Aktivitas dan Fitur
 
+> **Keputusan PM (26 Nov 2026):** Gantt di halaman proyek hanya menampilkan **aktivitas dan milestone** (Kick-off, Sprint N, SIT, UAT, Go-live, dan aktivitas tambahan) agar halaman tidak penuh. Fitur dan baris CR dijadwalkan lewat tabel 6.8. Gambar di bawah tetap menjadi acuan gaya (bar, milestone, garis hari ini, arsiran libur).
+
 ```
                     Sprint 1     Sprint 2  ▒▒ Sprint 3     Sprint 4
                     5–16 Jan     19–30 Jan ▒▒ 2–13 Feb     16–27 Feb

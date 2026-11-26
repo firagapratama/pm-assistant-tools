@@ -22,10 +22,18 @@
 	] as const);
 	const signed = (n: number, d = 0) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${decimal(Math.abs(n), d)}`;
 	const money = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${rupiahShort(Math.abs(n))}`;
+	/** Teks aman untuk string CSS `content` (tanpa kutip, garis miring terbalik, atau penutup tag). */
+	const cssText = (t: string) => t.replace(/[\\"<>\n\r]/g, ' ');
 	const lines = (t: string) => t.split('\n').map((l) => l.trim()).filter(Boolean);
 </script>
 
-<svelte:head><title>Laporan {data.project.name} · {date(r.periodStart)}</title></svelte:head>
+<svelte:head>
+	<title>Laporan {data.project.name} · {date(r.periodStart)}</title>
+	{#if teknis}
+		<!-- Template Teknis bisa lebih dari satu halaman: kop dan "halaman n/m" diulang di setiap halaman (design.md 6.13). -->
+		{@html `<style>@page { @top-left { content: "${cssText(`${data.project.name} · ${date(r.periodStart)} – ${date(r.periodEnd)}`)}"; font: 9pt 'IBM Plex Sans', sans-serif; color: #596273; } @top-right { content: "Halaman " counter(page) "/" counter(pages); font: 9pt 'IBM Plex Sans', sans-serif; color: #596273; } }</style>`}
+	{/if}
+</svelte:head>
 
 <div class="alat">
 	<a class="kembali" href="/proyek/{data.project.id}?tab=laporan"><ArrowLeft size={14} strokeWidth={1.75} aria-hidden="true" /> Kembali ke proyek</a>
