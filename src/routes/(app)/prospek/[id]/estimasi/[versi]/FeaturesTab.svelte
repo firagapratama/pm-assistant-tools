@@ -6,15 +6,40 @@
 	import RangeBand from '#lib/components/RangeBand.svelte';
 	import { toast } from '#lib/components/toast.svelte.ts';
 	import { decimal } from '#lib/format/index.ts';
+	import { deserialize } from '$app/forms';
+	import { BookOpen, BookmarkPlus } from '@lucide/svelte';
 	import AiDraft from './AiDraft.svelte';
+	import LibraryPicker from './LibraryPicker.svelte';
 	import type { EditorFeature, EstimateEditor } from './editor.svelte.ts';
 
 	let {
 		ed,
 		ai,
 		needs,
-		prospectId
-	}: { ed: EstimateEditor; ai: { model: string } | null; needs: string; prospectId: number } = $props();
+		prospectId,
+		library
+	}: {
+		ed: EstimateEditor;
+		ai: { model: string } | null;
+		needs: string;
+		prospectId: number;
+		library: import('#lib/server/library.ts').FeatureTemplate[];
+	} = $props();
+
+	let picking = $state(false);
+	let savingLib: number | null = $state(null);
+
+	async function saveToLibrary(f: EditorFeature) {
+		if (!f.name.trim()) return toast('Beri nama fitur dulu sebelum menyimpan ke library.', 'error');
+		savingLib = f.key;
+		const { key: _key, ...feature } = $state.snapshot(f);
+		const body = new FormData();
+		body.set('payload', JSON.stringify(feature));
+		const res = deserialize(await (await fetch('?/saveToLibrary', { method: 'POST', body, headers: { 'x-sveltekit-action': 'true' } })).text());
+		savingLib = null;
+		if (res.type === 'success') toast(String(res.data?.message ?? 'Disimpan ke library'));
+		else toast(res.type === 'failure' ? String(res.data?.message ?? 'Gagal menyimpan.') : 'Terjadi kesalahan.', 'error');
+	}
 
 	let open: number | null = $state(null);
 
@@ -73,7 +98,9 @@
 {#if !ed.locked}
 	<div class="ai-baris">
 		<AiDraft {ed} {ai} {needs} {prospectId} />
+		<button class="btn" onclick={() => (picking = !picking)} aria-expanded={picking}><BookOpen size={16} strokeWidth={1.75} aria-hidden="true" /> Dari library</button>
 	</div>
+	{#if picking}<LibraryPicker {ed} {library} onclose={() => (picking = false)} />{/if}
 {/if}
 
 {#if ed.features.length === 0}
@@ -253,6 +280,7 @@
 									{#if !ed.locked}
 										<div class="aksi">
 											<button class="btn kecil" onclick={() => focusName(ed.duplicate(f.key))}><Copy size={14} strokeWidth={1.75} aria-hidden="true" /> Duplikasi</button>
+											<button class="btn kecil" onclick={() => saveToLibrary(f)} disabled={savingLib === f.key}><BookmarkPlus size={14} strokeWidth={1.75} aria-hidden="true" /> Simpan ke library</button>
 											<button class="btn kecil" onclick={() => ed.move(f.key, -1)} disabled={i === 0}><ArrowUp size={14} strokeWidth={1.75} aria-hidden="true" /> Naik</button>
 											<button class="btn kecil" onclick={() => ed.move(f.key, 1)} disabled={i === ed.features.length - 1}><ArrowDown size={14} strokeWidth={1.75} aria-hidden="true" /> Turun</button>
 											<button class="btn kecil bahaya" onclick={() => removeFeature(f)}><Trash2 size={14} strokeWidth={1.75} aria-hidden="true" /> Hapus fitur</button>
@@ -287,7 +315,14 @@
 
 <style>
 	.ai-baris {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--jarak-2);
 		margin-bottom: var(--jarak-4);
+	}
+	/* Panel draf AI yang terbuka mengambil satu baris penuh. */
+	.ai-baris > :global(section) {
+		flex-basis: 100%;
 	}
 	.alat {
 		display: flex;

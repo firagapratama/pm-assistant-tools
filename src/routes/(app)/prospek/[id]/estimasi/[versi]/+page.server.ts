@@ -5,7 +5,8 @@ import { db } from '#lib/server/db/index.ts';
 import { aiConfig, loadEstimateOr404 } from '#lib/server/estimate-context.ts';
 import { EstimateError, finalizeEstimate, refreshRates, saveEstimate } from '#lib/server/estimates.ts';
 import { formOf } from '#lib/server/form.ts';
-import { EstimateDraftSchema } from '#lib/validation/estimate.ts';
+import { LibraryError, listTemplates, saveTemplate } from '#lib/server/library.ts';
+import { DraftFeatureSchema, EstimateDraftSchema } from '#lib/validation/estimate.ts';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = ({ params }) => {
@@ -22,7 +23,8 @@ export const load: PageServerLoad = ({ params }) => {
 			deadline: prospect.deadline,
 			needs: prospect.needs
 		},
-		estimate
+		estimate,
+		library: listTemplates(db)
 	};
 };
 
@@ -49,6 +51,27 @@ export const actions: Actions = {
 			return failWith('save', e);
 		}
 		return { saved: true };
+	},
+
+	/** Menyimpan satu fitur estimasi sebagai template baru di library (salinan). */
+	saveToLibrary: async ({ params, request }) => {
+		loadEstimateOr404(params);
+		let json: unknown;
+		try {
+			json = JSON.parse((await formOf(request)).payload ?? '');
+		} catch {
+			return fail(400, { action: 'saveToLibrary', message: 'Data fitur tidak terbaca.' });
+		}
+		const r = v.safeParse(DraftFeatureSchema, json);
+		if (!r.success) return fail(400, { action: 'saveToLibrary', message: 'Isian fitur belum valid.' });
+		const f = r.output;
+		try {
+			saveTemplate(db, null, { name: f.name, category: f.module, complexity: 'sedang', description: f.description, assumptions: f.assumptions, efforts: f.efforts });
+		} catch (e) {
+			if (e instanceof LibraryError) return fail(400, { action: 'saveToLibrary', message: e.message });
+			throw e;
+		}
+		return { message: `"${f.name}" disimpan ke library` };
 	},
 
 	refreshRates: ({ params }) => {

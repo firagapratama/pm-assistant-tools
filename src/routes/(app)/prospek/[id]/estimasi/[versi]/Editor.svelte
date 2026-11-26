@@ -211,7 +211,7 @@
 
 		<div class="tab-isi" role="tabpanel" id="panel-{tab}" aria-labelledby="tab-{tab}">
 			{#if tab === 'fitur'}
-				<FeaturesTab {ed} ai={data.ai} needs={p.needs} prospectId={p.id} />
+				<FeaturesTab {ed} ai={data.ai} needs={p.needs} prospectId={p.id} library={data.library} />
 			{:else if tab === 'tim'}
 				<TeamTab {ed} deadline={p.deadline} />
 			{:else if tab === 'biaya'}
