@@ -1,5 +1,9 @@
 import { db } from '#lib/server/db/index.ts';
-import { listProjects } from '#lib/server/projects.ts';
+import { todayIso } from '#lib/format/index.ts';
+import { projectDashboard } from '#lib/server/projects.ts';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = () => ({ projects: listProjects(db) });
+export const load: PageServerLoad = () => {
+	const today = todayIso();
+	return { today, projects: projectDashboard(db, today) };
+};

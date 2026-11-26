@@ -7,9 +7,11 @@ import {
 	getProject,
 	resetSchedule,
 	saveActivity,
+	setHealthOverride,
 	updateFeatureSchedule
 } from '#lib/server/projects.ts';
 import { todayIso } from '#lib/format/index.ts';
+import type { Health } from '#lib/project-status.ts';
 import { RAID_STATUSES, RAID_TYPES, type RaidStatus, type RaidType } from '#lib/raid.ts';
 import { RaidError, deleteRaid, saveRaid } from '#lib/server/raid.ts';
 import { ReportError, createWeeklyReport, deleteDraftReport, listReports, saveNarrative, sendReport } from '#lib/server/reports.ts';
@@ -146,5 +148,17 @@ export const actions: Actions = {
 		const { project } = load404(params.id);
 		resetSchedule(db, project.id);
 		return { message: 'Rencana dikembalikan ke baseline' };
+	},
+
+	setHealth: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		try {
+			setHealthOverride(db, project.id, form.health ? { health: form.health as Health, reason: form.reason ?? '' } : null);
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { message: form.health ? 'Status ditetapkan manual' : 'Status kembali otomatis' };
 	}
 };

@@ -7,6 +7,7 @@ import { lines } from '../format/index.ts';
 import { calendarFor, computeDraft } from '../estimate.ts';
 import { roleLabel } from '../labels.ts';
 import { maxPlanSprint, type ProjectBaseline } from '../project.ts';
+import { HEALTHS, projectStatus, statusInputFrom, type Health } from '../project-status.ts';
 import type { Db, DbLike } from './db/index.ts';
 import {
 	estimateEfforts,
@@ -146,6 +147,55 @@ export function getProject(db: Db, id: number) {
 		schedule: getSchedule(db, id),
 		activities: listActivities(db, id)
 	};
+}
+
+const HEALTH_ORDER: Record<Health, number> = { merah: 0, kuning: 1, hijau: 2 };
+
+/** Dashboard kesehatan (F10): ringkasan per proyek, proyek aktif yang paling bermasalah lebih dulu. */
+export function projectDashboard(db: Db, today: string) {
+	return listProjects(db)
+		.map(({ id }) => {
+			const p = getProject(db, id)!;
+			const st = projectStatus(statusInputFrom(p, today));
+			return {
+				id,
+				name: p.prospect.name,
+				client: p.prospect.client,
+				status: p.project.status,
+				startDate: p.project.startDate,
+				health: st.health,
+				autoHealth: st.autoHealth,
+				manual: st.override !== null,
+				reasons: st.reasons,
+				overall: st.overall,
+				expected: st.expected,
+				currentSprint: st.currentSprint,
+				totalSprints: p.project.baseline.totalSprints,
+				plannedEnd: st.plannedEnd,
+				slipDays: st.slipDays,
+				highRisks: st.highRisks.length,
+				blockers: st.blockers.length,
+				late: st.late.length,
+				nextDue: st.nextDue && { name: st.nextDue.name, kind: st.nextDue.kind, date: st.nextDue.endDate }
+			};
+		})
+		.sort((a, b) => Number(a.status !== 'aktif') - Number(b.status !== 'aktif') || HEALTH_ORDER[a.health] - HEALTH_ORDER[b.health]);
+}
+
+/** Status kesehatan manual (F10): wajib beralasan; `null` mengembalikan ke otomatis. */
+export function setHealthOverride(db: Db, projectId: number, value: { health: Health; reason: string } | null) {
+	if (value) {
+		if (!HEALTHS.includes(value.health)) throw new ScheduleError('Status tidak dikenal.');
+		value = { ...value, reason: value.reason.trim() };
+		if (!value.reason) throw new ScheduleError('Tulis alasan mengganti status.');
+		if (value.reason.length > 500) throw new ScheduleError('Alasan maksimal 500 karakter.');
+	}
+	const res = db
+		.update(projects)
+		.set({ healthOverride: value?.health ?? null, healthReason: value?.reason ?? null })
+		.where(eq(projects.id, projectId))
+		.run();
+	if (!res.changes) throw new ScheduleError('Proyek tidak ada.');
 }
 
 /** Proyek milik prospek (untuk tautan dua arah dari halaman prospek). */

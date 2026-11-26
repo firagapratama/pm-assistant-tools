@@ -9,7 +9,7 @@
 	import { toast } from '#lib/components/toast.svelte.ts';
 	import { date, decimal, range, rupiah, rupiahShort, todayIso } from '#lib/format/index.ts';
 	import { maxPlanSprint } from '#lib/project.ts';
-	import { HEALTH_LABEL, projectStatus, statusInputFrom } from '#lib/project-status.ts';
+	import { HEALTHS, HEALTH_LABEL, projectStatus, statusInputFrom, type Health } from '#lib/project-status.ts';
 	import RaidTab from './RaidTab.svelte';
 	import ReportsTab from './ReportsTab.svelte';
 	import Gantt, { type GanttActivity } from './Gantt.svelte';
@@ -112,6 +112,21 @@
 		(row?.querySelector(selector) as HTMLElement | null)?.focus({ preventScroll: true });
 	}
 
+	// ── Status manual (F10) ──
+	let healthOpen = $state(false);
+	let healthForm: { health: Health | ''; reason: string } = $state({ health: '', reason: '' });
+	function openHealth() {
+		healthForm = { health: pr.healthOverride ?? '', reason: pr.healthReason ?? '' };
+		healthOpen = true;
+	}
+	async function saveHealth(e: SubmitEvent) {
+		e.preventDefault();
+		saving = 'health';
+		const ok = await post('setHealth', healthForm.health ? healthForm : { health: '' });
+		saving = null;
+		if (ok) healthOpen = false;
+	}
+
 	const featureHours = (f: (typeof est.draft.features)[number]) => Object.values(f.efforts).reduce((a, t) => a + pertE(t), 0);
 </script>
 
@@ -138,7 +153,11 @@
 <section class="panel strip" aria-label="Status proyek">
 	<div>
 		<span class="label">Status</span>
-		<strong><span class="badge kesehatan {st.health}">{HEALTH_LABEL[st.health]}</span></strong>
+		<strong class="status-baris">
+			<span class="badge kesehatan {st.health}">{HEALTH_LABEL[st.health]}</span>
+			{#if st.override}<span class="manual">manual</span>{/if}
+			<button type="button" class="btn teks kecil" aria-expanded={healthOpen} onclick={() => (healthOpen ? (healthOpen = false) : openHealth())}>Ubah</button>
+		</strong>
 		<span class="sub" title={st.reasons.join('\n')}>{st.reasons[0] ?? 'Sesuai rencana'}{st.reasons.length > 1 ? ` (+${st.reasons.length - 1})` : ''}</span>
 	</div>
 	<div>
@@ -159,6 +178,33 @@
 		<span class="sub">{st.overdueReviews.length ? `${st.overdueReviews.length} lewat tanggal tinjau` : `${lateCount} item terlambat`}</span>
 	</div>
 </section>
+
+{#if healthOpen}
+	<form class="panel form-status" onsubmit={saveHealth} aria-label="Ubah status kesehatan">
+		<fieldset class="field">
+			<legend class="field-label">Status</legend>
+			<div class="pilih-status">
+				<label><input type="radio" name="health" value="" bind:group={healthForm.health} /> Otomatis ({HEALTH_LABEL[st.autoHealth]})</label>
+				{#each HEALTHS as h (h)}
+					<label><input type="radio" name="health" value={h} bind:group={healthForm.health} /> {HEALTH_LABEL[h]}</label>
+				{/each}
+			</div>
+		</fieldset>
+		{#if healthForm.health}
+			<label class="field">
+				<span class="field-label">Alasan</span>
+				<textarea rows="2" maxlength="500" required bind:value={healthForm.reason} placeholder="Mengapa status otomatis tidak mewakili kondisi proyek?"></textarea>
+			</label>
+		{/if}
+		{#if st.autoHealth !== 'hijau'}
+			<p class="field-hint">Alasan otomatis: {st.reasons.filter((r) => !r.startsWith('Ditetapkan PM')).join(' · ')}</p>
+		{/if}
+		<div class="aksi-status">
+			<button type="button" class="btn teks" onclick={() => (healthOpen = false)}>Batal</button>
+			<button class="btn" disabled={saving === 'health'}>Simpan status</button>
+		</div>
+	</form>
+{/if}
 
 <nav class="tab" aria-label="Bagian proyek">
 	{#each TABS as t (t.id)}
@@ -488,6 +534,46 @@
 	.kesehatan.kuning { background: var(--waspada-tipis); color: var(--waspada); }
 	.kesehatan.kuning::before { background: var(--waspada-ikon); }
 	.kesehatan.merah { background: var(--kritis-tipis); color: var(--kritis); }
+	.status-baris {
+		display: flex;
+		align-items: center;
+		gap: var(--jarak-2);
+	}
+	.status-baris .btn {
+		margin-left: auto;
+	}
+	.manual {
+		font-size: var(--teks-mini);
+		font-weight: 400;
+		color: var(--tinta-2);
+	}
+	.form-status {
+		display: grid;
+		gap: var(--jarak-4);
+		padding: var(--jarak-6);
+		margin-bottom: var(--jarak-6);
+	}
+	.form-status fieldset {
+		border: 0;
+		padding: 0;
+		margin: 0;
+	}
+	.pilih-status {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--jarak-2) var(--jarak-6);
+		font-size: var(--teks-isi);
+	}
+	.pilih-status label {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--jarak-2);
+	}
+	.aksi-status {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--jarak-2);
+	}
 	.strip .sub {
 		overflow: hidden;
 		text-overflow: ellipsis;

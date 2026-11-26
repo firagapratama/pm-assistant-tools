@@ -213,6 +213,9 @@ export const projects = sqliteTable('projects', {
 	/** Angka baseline yang dibekukan saat Deal. */
 	baseline: text('baseline', { mode: 'json' }).$type<ProjectBaseline>().notNull().default(sql`'{}'`),
 	status: text('status', { enum: ['aktif', 'selesai', 'ditunda'] }).notNull().default('aktif'),
+	/** Status kesehatan yang ditetapkan PM (F10); null = otomatis. */
+	healthOverride: text('health_override', { enum: ['hijau', 'kuning', 'merah'] }),
+	healthReason: text('health_reason'),
 	createdAt: createdAt()
 });
 

@@ -3,7 +3,7 @@
 	import { untrack } from 'svelte';
 	import { Check, FileText, LoaderCircle, Plus, Send, Trash2 } from '@lucide/svelte';
 	import { date, decimal } from '#lib/format/index.ts';
-	import { HEALTH_LABEL, statusInputFrom, type StatusInput } from '#lib/project-status.ts';
+	import { HEALTH_LABEL, statusInputFrom, type Health, type StatusInput } from '#lib/project-status.ts';
 	import { buildReport, weekOf, type ReportData } from '#lib/report.ts';
 	import type { ProjectBaseline } from '#lib/project.ts';
 	import type { EstimateSettings } from '#lib/calc/settings.ts';
@@ -28,7 +28,7 @@
 	}: {
 		data: {
 			reports: Report[];
-			project: { startDate: string; baseline: ProjectBaseline };
+			project: { startDate: string; baseline: ProjectBaseline; healthOverride: Health | null; healthReason: string | null };
 			estimate: { draft: { settings: EstimateSettings }; holidays: Holiday[] };
 			schedule: StatusInput['schedule'];
 			activities: StatusInput['activities'];

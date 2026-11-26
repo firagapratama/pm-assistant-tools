@@ -1,5 +1,6 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { addDays } from '../calc/calendar.ts';
 import { DEFAULT_SETTINGS } from '../calc/settings.ts';
 import { projectStatus, statusInputFrom } from '../project-status.ts';
 import { HIGH_RISK, raidScore, reviewOverdue, severity } from '../raid.ts';
@@ -7,7 +8,7 @@ import { weekOf } from '../report.ts';
 import { openDb, type Db } from './db/index.ts';
 import { createEstimate, finalizeEstimate, getEstimate, saveEstimate } from './estimates.ts';
 import { createRole, loadOfficialHolidays } from './master.ts';
-import { dealProspect, getProject, saveActivity, updateFeatureSchedule } from './projects.ts';
+import { dealProspect, getProject, projectDashboard, saveActivity, setHealthOverride, updateFeatureSchedule } from './projects.ts';
 import { createProspect } from './prospects.ts';
 import { RaidError, deleteRaid, saveRaid } from './raid.ts';
 import { ReportError, createWeeklyReport, deleteDraftReport, getReport, listReports, saveNarrative, sendReport } from './reports.ts';
@@ -131,5 +132,33 @@ describe('laporan mingguan', () => {
 		expect(listReports(db, projectId).map((r) => r.id)).toEqual([next, id]);
 		deleteDraftReport(db, projectId, next);
 		expect(listReports(db, projectId)).toHaveLength(1);
+	});
+});
+
+describe('dashboard kesehatan (F10)', () => {
+	it('blocker > 2 hari membuat Kuning; tenggat terdekat dan sprint berjalan', () => {
+		saveRaid(db, projectId, null, { ...risk, type: 'issue', description: 'Akses VPN belum ada', impact: 3 });
+		const created = getProject(db, projectId)!.raid[0].createdAt.toISOString().slice(0, 10);
+		const s = status(created);
+		expect(s.blockers).toHaveLength(1);
+		expect(s.reasons.join(' ')).not.toMatch(/blocker/);
+		const later = status(addDays(created, 3));
+		expect(later.reasons.join(' ')).toMatch(/1 blocker terbuka lebih dari 2 hari/);
+
+		const s2 = status('2027-07-20');
+		expect(s2.currentSprint).toBe(2);
+		expect(s2.nextDue!.endDate >= '2027-07-20').toBe(true);
+		expect(status('2027-07-01').currentSprint).toBe(0);
+	});
+
+	it('status manual wajib alasan, menggantikan status otomatis, dan bisa dikembalikan', () => {
+		expect(() => setHealthOverride(db, projectId, { health: 'merah', reason: ' ' })).toThrow(/alasan/);
+		setHealthOverride(db, projectId, { health: 'merah', reason: 'Klien menunda UAT' });
+		const s = status('2027-07-05');
+		expect(s).toMatchObject({ health: 'merah', autoHealth: 'hijau', override: { health: 'merah' } });
+		expect(s.reasons[0]).toBe('Ditetapkan PM: Klien menunda UAT');
+		expect(projectDashboard(db, '2027-07-05')[0]).toMatchObject({ health: 'merah', manual: true, totalSprints: expect.any(Number) });
+		setHealthOverride(db, projectId, null);
+		expect(status('2027-07-05').health).toBe('hijau');
 	});
 });
