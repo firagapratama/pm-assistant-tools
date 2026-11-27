@@ -1,7 +1,7 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { addDays } from '../calc/calendar.ts';
-import { DEFAULT_SETTINGS } from '../calc/settings.ts';
+import { DEFAULT_SETTINGS as BASE_SETTINGS } from '../calc/settings.ts';
 import { computeDraft } from '../estimate.ts';
 import { openDb, type Db } from './db/index.ts';
 import { estimates } from './db/schema.ts';
@@ -19,6 +19,9 @@ import {
 	updateFeatureSchedule
 } from './projects.ts';
 import { StatusChangeError, changeStatus, createProspect, deleteProspect, getProspect } from './prospects.ts';
+
+// Contoh PRD 7.6 tanpa cadangan cuti/sakit; cadangan diuji terpisah.
+const DEFAULT_SETTINGS = { ...BASE_SETTINGS, leaveDaysPerYear: 0, sickDaysPerYear: 0 };
 
 let db: Db;
 let prospectId: number;

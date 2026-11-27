@@ -11,6 +11,7 @@
 	import FeaturesTab from './FeaturesTab.svelte';
 	import ParamsTab from './ParamsTab.svelte';
 	import Summary from './Summary.svelte';
+	import ScenariosTab from './ScenariosTab.svelte';
 	import TeamTab from './TeamTab.svelte';
 	import type { PageData } from './$types';
 
@@ -29,6 +30,7 @@
 		{ id: 'fitur', label: 'Fitur' },
 		{ id: 'tim', label: 'Tim' },
 		{ id: 'biaya', label: 'Biaya' },
+		{ id: 'skenario', label: 'Skenario' },
 		{ id: 'parameter', label: 'Parameter' }
 	] as const;
 	let tab: (typeof TABS)[number]['id'] = $state('fitur');
@@ -220,6 +222,8 @@
 				<TeamTab {ed} deadline={p.deadline} />
 			{:else if tab === 'biaya'}
 				<CostTab {ed} onRefreshRates={() => runAction('refreshRates')} />
+			{:else if tab === 'skenario'}
+				<ScenariosTab {ed} />
 			{:else}
 				<ParamsTab {ed} />
 			{/if}

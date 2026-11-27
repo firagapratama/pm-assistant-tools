@@ -297,8 +297,8 @@ Setiap fitur ditulis dengan format: tujuan, user story, data, aturan bisnis, dan
 - Saat skenario menambah MP, sistem menampilkan pengingat bahwa penambahan orang tidak mempercepat secara linear (onboarding dan biaya koordinasi). Faktor overhead koordinasi bersifat opsional dan dapat diatur.
 
 **Kriteria penerimaan:**
-- [ ] Tabel perbandingan skenario berdampingan: MP total, sprint, durasi, total biaya, dan harga jual.
-- [ ] Perbandingan antarversi menampilkan apa yang berubah (fitur ditambah/dihapus, selisih angka).
+- [x] Tabel perbandingan skenario berdampingan: MP total, sprint, durasi, total biaya, dan harga jual.
+- [x] Perbandingan antarversi menampilkan apa yang berubah (fitur ditambah/dihapus, selisih angka).
 
 ### F8 — Ringkasan untuk Direksi
 
@@ -624,10 +624,10 @@ Sistem berjalan di lokal (SvelteKit + SQLite), belum dideploy ke server. Tanda: 
 | F1 Master data | ✅ | Peran, rate card bertanggal, parameter default. **Tambahan:** master kalender libur (libur nasional dan cuti bersama), terisi dari SKB resmi 2026–2027 dan dapat diubah; memengaruhi kapasitas sprint dan tanggal pada estimasi serta proyek. |
 | F2 Pipeline prospek | ✅ | Daftar dan kanban, filter status/klien, pencarian, riwayat status. Prospek dapat dihapus. |
 | F3 Library fitur | ✅ | Template dengan effort default per peran (jam); tambah beberapa sekaligus ke estimasi (disalin, dapat diurungkan); simpan fitur estimasi ke library. Rata-rata realisasi menunggu F15. |
-| F4 Estimasi PERT | ✅ | Input SP atau jam (disimpan dalam jam). **Tambahan:** draf fitur dengan AI (API kompatibel OpenAI; yang dikirim hanya nama proyek, kebutuhan, tujuan, catatan, dan nama peran). **Belum:** kontrol privasi sesuai F4 (pratinjau, samarkan, saklar, log). |
+| F4 Estimasi PERT | ✅ | Input SP atau jam (disimpan dalam jam). **Tambahan:** draf fitur dengan AI (API kompatibel OpenAI; yang dikirim hanya nama proyek, kebutuhan, tujuan, catatan, dan nama peran). Kontrol privasi sesuai F4 berjalan: pratinjau teks yang dikirim (dapat diedit), samarkan nama klien/proyek, saklar dan log pemanggilan di Pengaturan, baris "Draf AI" wajib ditinjau sebelum final. |
 | F5 Tim dan sprint | ✅ | Bottleneck tersorot, pengingat bahwa penambahan orang tidak linear. **Tambahan:** "Sarankan tim" dan jadwal sprint mengikuti kalender libur. |
 | F6 Biaya dan harga | ✅ | Rate = biaya perusahaan (Q3). Tampilan time & material di samping fixed price (Q5). |
-| F7 Skenario dan versi | 🟡 | Versi, finalisasi, dan kunci versi final berjalan; versi dapat dihapus. **Belum:** beberapa skenario per versi (saat ini satu skenario utama), tabel perbandingan skenario, dan perbandingan antarversi. |
+| F7 Skenario dan versi | ✅ | Versi, finalisasi, kunci versi final, dan hapus versi. Tab **Skenario** di editor: hingga 5 skenario alternatif (tim berbeda dan/atau hanya Must, Must + Should) dibandingkan berdampingan dengan skenario utama, termasuk selisih sprint, biaya, dan harga; "Pakai tim ini sebagai utama". Skenario utama tetap yang dipakai ringkasan direksi dan baseline proyek. Halaman **Bandingkan versi**: angka berdampingan dengan selisih, fitur ditambah/dihapus/berubah, tim dan rate, parameter, serta asumsi/risiko. Faktor overhead koordinasi tidak dihitung (hanya pengingat). |
 | F8 Ringkasan direksi | 🟡 | PDF A4 satu halaman, opsi rincian rate. Untuk estimasi yang menjadi baseline proyek, tanggal memakai tanggal mulai proyek. **Belum:** tautan baca-saja (opsional). |
 | F9 Konversi ke proyek | ✅ | Deal (dengan tanggal mulai) membuat proyek, baseline beku, sprint, dan RAID dari asumsi/risiko. **Tambahan:** Gantt aktivitas dan milestone (Kick-off, Sprint N, SIT, UAT, Go-live, dapat ditambah), tabel jadwal dan progres per fitur yang direncanakan otomatis dan dapat digeser. |
 | F10 Dashboard kesehatan | 🟡 | Lihat 14.1. **Belum:** realisasi biaya vs anggaran (biaya aktual belum dicatat) dan ambang status yang dapat diubah (saat ini tetap). |
@@ -668,6 +668,10 @@ Sistem berjalan di lokal (SvelteKit + SQLite), belum dideploy ke server. Tanda: 
   - Cetak A4 dengan template Direksi (ringkas) atau Teknis (rinci).
 - **Aktivitas sprint.** Aktivitas "Sprint N" dicentang otomatis saat semua fitur (termasuk CR) yang dijadwalkan selesai di sprint N mencapai 100%, dan dibatalkan bila progres turun lagi. Sprint tanpa fitur yang berakhir di sana tetap dicentang manual.
 
+- **Ketersediaan tim (tambahan, 27 Nov 2026).**
+  - *Estimasi:* parameter cadangan cuti tahunan (default 12 hari/orang/tahun) dan sakit (default 3) mengurangi kapasitas sebesar (cuti + sakit) ÷ 240 hari kerja; rencana lembur (jam/orang/sprint) menambah kapasitas dan biaya. Upah lembur = 1/173 upah bulanan × 1,5 jam pertama dan × 2 jam berikutnya per hari (PP 35/2021). Snapshot estimasi lama tanpa parameter ini dihitung 0, sehingga angkanya tidak berubah.
+  - *Proyek berjalan:* cuti, sakit, dan lembur dicatat per peran dengan tanggal dan jumlah orang. Dampak per peran = (orang-hari absen × jam efektif − jam lembur) ÷ kapasitas harian peran; proyeksi selesai bergeser sebesar dampak terbesar (dibulatkan ke hari kerja). Ketidakhadiran peran tanpa effort fitur (mis. PM) tidak menggeser jadwal.
+
 ### 14.2 Kebutuhan non-fungsional
 
 | Aspek | Status |
@@ -676,17 +680,15 @@ Sistem berjalan di lokal (SvelteKit + SQLite), belum dideploy ke server. Tanda: 
 | Bahasa dan format | ✅ Antarmuka Indonesia, Rupiah, tanggal Indonesia. |
 | Ekspor | ✅ PDF ringkasan direksi dan laporan mingguan. ⬜ CSV/XLSX tabel estimasi. |
 | Backup | ⬜ Belum ada backup otomatis maupun ekspor data penuh. **Mendesak:** data sungguhan sudah ada di lokal. |
-| Privasi AI | 🟡 Data terkirim sudah dibatasi. ⬜ Pratinjau, samarkan identitas, saklar di Pengaturan, dan log pemanggilan. |
+| Privasi AI | ✅ Data terkirim dibatasi, pratinjau dan samarkan identitas, saklar di Pengaturan, log pemanggilan tanpa isi teks. |
 | Keamanan data / HTTPS | ⬜ Bergantung pada deploy (belum). |
 
 ### 14.3 Rencana berikutnya
 
 1. **Backup lokal segera**, tidak menunggu deploy: `sqlite3 .backup` harian ke folder yang tersinkron ke cloud, simpan 30 salinan terakhir, lalu uji pemulihan sekali.
-2. Kontrol privasi draf AI (F4).
-3. Validasi MVP dengan 2–3 proyek lama (Bagian 12).
-4. Deploy ke VPS (menunggu Q1: spesifikasi, domain); backup beralih ke skema server (`tech-stack.md` Bagian 10).
-5. F7 lengkap: skenario ganda dan perbandingan versi.
-6. F15 kalibrasi historis, lalu F16 integrasi.
+2. Validasi MVP dengan 2–3 proyek lama (Bagian 12).
+3. Deploy ke VPS (menunggu Q1: spesifikasi, domain); backup beralih ke skema server (`tech-stack.md` Bagian 10).
+4. F15 kalibrasi historis, lalu F16 integrasi.
 
 ---
 

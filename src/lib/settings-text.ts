@@ -17,5 +17,8 @@ export const settingsToText = (s: EstimateSettings): SettingsText => ({
 	contingencyBp: decimal(s.contingencyBp / 100, 2),
 	markupBp: decimal(s.markupBp / 100, 2),
 	weeksPerMonth: decimal(s.weeksPerMonth, 4),
-	rangeSigma: decimal(s.rangeSigma, 2)
+	rangeSigma: decimal(s.rangeSigma, 2),
+	leaveDaysPerYear: decimal(s.leaveDaysPerYear ?? 0, 1),
+	sickDaysPerYear: decimal(s.sickDaysPerYear ?? 0, 1),
+	overtimeHoursPerSprint: decimal(s.overtimeHoursPerSprint ?? 0, 1)
 });

@@ -46,7 +46,7 @@ export interface ScenarioResult {
 
 function planFor(effort: Map<number, number>, input: ScenarioInput): PlanPoint {
 	const sprint = sprintPlan(effort, input.team, input.settings, input.sprintFactor);
-	const cost = costPlan(input.team, input.rates, sprint.months, input.overhead, input.settings);
+	const cost = costPlan(input.team, input.rates, sprint.months, input.overhead, input.settings, sprint.totalSprints);
 	return { sprint, cost };
 }
 

@@ -23,6 +23,7 @@ import {
 	raidItems,
 	sprints
 } from './db/schema.ts';
+import { listAvailability } from './availability.ts';
 import { listDecisions } from './decisions.ts';
 import { getEstimate, mainScenarioId } from './estimates.ts';
 import { StatusChangeError, checkStatusChange, writeStatus } from './prospects.ts';
@@ -155,6 +156,7 @@ export function getProject(db: Db, id: number) {
 		schedule: getSchedule(db, id),
 		activities: listActivities(db, id),
 		decisions: listDecisions(db, id),
+		availability: listAvailability(db, id),
 		/** `effect`: dampak yang dibekukan bila sudah diputuskan, atau perkiraan saat ini bila masih diajukan. */
 		changeRequests: crs.map((c) => ({ ...c, effect: c.impact ?? crImpact(ctx, approvedEfforts, c.efforts) }))
 	};

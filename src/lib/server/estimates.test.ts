@@ -1,7 +1,7 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as v from 'valibot';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS } from '../calc/settings.ts';
+import { DEFAULT_SETTINGS as BASE_SETTINGS } from '../calc/settings.ts';
 import { EstimateDraftSchema, type EstimateDraft } from '../validation/estimate.ts';
 import { openDb, type Db } from './db/index.ts';
 import { estimateFeatures } from './db/schema.ts';
@@ -19,6 +19,9 @@ import { createRole, getAiEnabled, listAiCalls, loadOfficialHolidays, logAiCall,
 import { computeDraft } from '../estimate.ts';
 import { changeStatus, createProspect, getProspect } from './prospects.ts';
 import { dealProspect } from './projects.ts';
+
+// Contoh PRD 7.6 tanpa cadangan cuti/sakit; cadangan diuji terpisah.
+const DEFAULT_SETTINGS = { ...BASE_SETTINGS, leaveDaysPerYear: 0, sickDaysPerYear: 0 };
 
 let db: Db;
 let prospectId: number;
@@ -243,5 +246,27 @@ describe('draf AI (PRD F4)', () => {
 		expect(getAiEnabled(db)).toBe(true);
 		logAiCall(db, { provider: 'api.contoh.test', model: 'm', chars: 1234, anonymized: true, ok: true, features: 12 });
 		expect(listAiCalls(db)).toEqual([expect.objectContaining({ provider: 'api.contoh.test', chars: 1234, anonymized: true, features: 12 })]);
+	});
+});
+
+describe('skenario alternatif (PRD F7)', () => {
+	it('tersimpan, ikut tersalin ke versi baru, dan tidak mengubah skenario utama', () => {
+		createEstimate(db, prospectId, today);
+		const id = getEstimate(db, prospectId, 1)!.id;
+		const scenarios = [
+			{ name: 'B: 2 Backend', priorities: null, team: [{ roleId: BE, mp: 2, months: null }] },
+			{ name: 'C: Hanya Must', priorities: ['must' as const], team: [{ roleId: BE, mp: 1, months: null }] }
+		];
+		saveEstimate(db, id, draftWith({ scenarios }));
+		const e = getEstimate(db, prospectId, 1)!;
+		expect(e.draft.scenarios).toEqual(scenarios);
+		expect(e.draft.team).toEqual([{ roleId: BE, mp: 1, months: null }]);
+
+		createEstimate(db, prospectId, today);
+		expect(getEstimate(db, prospectId, 2)!.draft.scenarios).toEqual(scenarios);
+
+		saveEstimate(db, id, draftWith());
+		expect(getEstimate(db, prospectId, 1)!.draft.scenarios).toBeUndefined();
+		expect(() => saveEstimate(db, id, draftWith({ scenarios: [{ name: 'X', priorities: null, team: [{ roleId: 999, mp: 1, months: null }] }] }))).toThrow(/peran/);
 	});
 });

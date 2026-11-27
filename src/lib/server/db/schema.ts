@@ -289,6 +289,22 @@ export const changeRequests = sqliteTable(
 	(t) => [uniqueIndex('change_requests_number').on(t.projectId, t.number)]
 );
 
+/** Ketersediaan tim di proyek berjalan: cuti/sakit (mengurangi kapasitas) dan lembur (menambah), per peran. */
+export const projectAvailability = sqliteTable('project_availability', {
+	id: integer('id').primaryKey(),
+	projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+	roleId: integer('role_id').notNull().references(() => roles.id),
+	kind: text('kind', { enum: ['cuti', 'sakit', 'lembur'] }).notNull(),
+	people: real('people').notNull().default(1),
+	/** YYYY-MM-DD, inklusif */
+	startDate: text('start_date').notNull(),
+	endDate: text('end_date').notNull(),
+	/** Lembur: jam per orang per hari kerja; 0 untuk cuti/sakit. */
+	hours: real('hours').notNull().default(0),
+	note: text('note').notNull().default(''),
+	createdAt: createdAt()
+});
+
 /** Decision log (F12). Tidak dihapus; pembatalan = keputusan baru yang merujuk keputusan lama. */
 export const decisions = sqliteTable(
 	'decisions',

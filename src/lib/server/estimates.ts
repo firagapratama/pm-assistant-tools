@@ -1,6 +1,7 @@
 // Estimasi (PRD F4–F7): versi per prospek, snapshot rate/parameter, simpan, dan finalisasi.
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, ne } from 'drizzle-orm';
 import { computeDraft, finalizeProblems } from '../estimate.ts';
+import { withAvailabilityDefaults } from '../calc/settings.ts';
 import type { EstimateDraft } from '../validation/estimate.ts';
 import type { Db, DbLike } from './db/index.ts';
 import {
@@ -107,9 +108,22 @@ function loadDraft(db: Db, row: NonNullable<ReturnType<typeof getRow>>): Estimat
 	const scenarioId = mainScenarioId(db, row.id);
 	const scenario = db.select().from(scenarios).where(eq(scenarios.id, scenarioId)).get()!;
 	const team = db.select().from(scenarioTeam).where(eq(scenarioTeam.scenarioId, scenarioId)).all();
+	// Skenario alternatif (F7): selain skenario utama; berbagi fitur dan overhead dengan skenario utama.
+	const others = db
+		.select()
+		.from(scenarios)
+		.where(and(eq(scenarios.estimateId, row.id), ne(scenarios.id, scenarioId)))
+		.orderBy(asc(scenarios.sortOrder), asc(scenarios.id))
+		.all();
+	const otherTeams = others.length ? db.select().from(scenarioTeam).where(inArray(scenarioTeam.scenarioId, others.map((s) => s.id))).all() : [];
+	const alternatives = others.map((s) => ({
+		name: s.name,
+		priorities: s.priorities,
+		team: otherTeams.filter((t) => t.scenarioId === s.id).map((t) => ({ roleId: t.roleId, mp: t.mp, months: t.months }))
+	}));
 
 	return {
-		settings: row.settings,
+		settings: withAvailabilityDefaults(row.settings),
 		assumptions: row.assumptions,
 		exclusions: row.exclusions,
 		risks: row.risks,
@@ -126,7 +140,8 @@ function loadDraft(db: Db, row: NonNullable<ReturnType<typeof getRow>>): Estimat
 			)
 		})),
 		team: team.map((t) => ({ roleId: t.roleId, mp: t.mp, months: t.months })),
-		overhead: scenario.overhead
+		overhead: scenario.overhead,
+		...(alternatives.length ? { scenarios: alternatives } : {})
 	};
 }
 
@@ -163,7 +178,11 @@ export function saveEstimate(db: Db, estimateId: number, draft: EstimateDraft) {
 	assertEditable(db, estimateId);
 	const row = db.select({ rates: estimates.rates }).from(estimates).where(eq(estimates.id, estimateId)).get()!;
 	const known = new Set(row.rates.map((r) => r.roleId));
-	const used = [...draft.features.flatMap((f) => Object.keys(f.efforts).map(Number)), ...draft.team.map((t) => t.roleId)];
+	const used = [
+		...draft.features.flatMap((f) => Object.keys(f.efforts).map(Number)),
+		...draft.team.map((t) => t.roleId),
+		...(draft.scenarios ?? []).flatMap((s) => s.team.map((t) => t.roleId))
+	];
 	if (used.some((id) => !known.has(id))) throw new EstimateError('Ada peran yang tidak ada di estimasi ini.');
 
 	const scenarioId = mainScenarioId(db, estimateId);
@@ -194,6 +213,17 @@ export function saveEstimate(db: Db, estimateId: number, draft: EstimateDraft) {
 		tx.delete(scenarioTeam).where(eq(scenarioTeam.scenarioId, scenarioId)).run();
 		const team = draft.team.filter((t) => t.mp > 0 || t.months !== null);
 		if (team.length) tx.insert(scenarioTeam).values(team.map((t) => ({ scenarioId, ...t }))).run();
+		// Skenario alternatif diganti seluruhnya; skenario utama (dipakai baseline proyek) tidak tersentuh.
+		tx.delete(scenarios).where(and(eq(scenarios.estimateId, estimateId), ne(scenarios.id, scenarioId))).run();
+		(draft.scenarios ?? []).forEach((s, i) => {
+			const { id } = tx
+				.insert(scenarios)
+				.values({ estimateId, name: s.name, priorities: s.priorities, sortOrder: i + 1 })
+				.returning({ id: scenarios.id })
+				.get();
+			const rows = s.team.filter((t) => t.mp > 0 || t.months !== null);
+			if (rows.length) tx.insert(scenarioTeam).values(rows.map((t) => ({ scenarioId: id, ...t }))).run();
+		});
 	});
 }
 

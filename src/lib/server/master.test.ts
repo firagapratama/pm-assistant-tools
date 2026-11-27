@@ -88,7 +88,8 @@ describe('parameter default', () => {
 describe('validasi form', () => {
 	const form = {
 		inputUnit: 'sp', spPerHour: '2', sprintWeeks: '2', workDaysPerSprint: '10', effectiveHoursPerDay: '6',
-		focusFactor: '0,8', stabilizationSprints: '1', contingencyBp: '15', markupBp: '12,5', weeksPerMonth: '4', rangeSigma: '1'
+		focusFactor: '0,8', stabilizationSprints: '1', contingencyBp: '15', markupBp: '12,5', weeksPerMonth: '4', rangeSigma: '1',
+		leaveDaysPerYear: '12', sickDaysPerYear: '3', overtimeHoursPerSprint: '0'
 	};
 
 	it('parameter dari form menjadi angka dan basis poin', () => {

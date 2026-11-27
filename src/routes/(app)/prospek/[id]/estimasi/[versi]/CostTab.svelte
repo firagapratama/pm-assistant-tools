@@ -51,6 +51,15 @@
 			{:else}
 				<tr><td colspan="5" class="redup">Belum ada orang di Tim.</td></tr>
 			{/each}
+			{#if cost.overtime > 0}
+				<tr>
+					<td colspan="4">
+						Lembur
+						<span class="redup">· {decimal(ed.settings.overtimeHoursPerSprint, 1)} jam/orang/sprint × {ed.result.likely.sprint.totalSprints} sprint, upah 1/173 × 1,5–2</span>
+					</td>
+					<td class="angka">{rupiah(cost.overtime)}</td>
+				</tr>
+			{/if}
 
 			<tr class="sub-judul"><td colspan="5">Overhead</td></tr>
 			{#each ed.overhead as item, i (i)}

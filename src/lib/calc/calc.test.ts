@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-	DEFAULT_SETTINGS,
+	DEFAULT_SETTINGS as BASE_SETTINGS,
 	aggregateEffort,
 	applyBp,
 	computeScenario,
@@ -18,6 +18,11 @@ import {
 	WorkCalendar,
 	type FeatureEffortInput
 } from './index';
+import { costPlan, overtimePayFactor } from './cost';
+import { withAvailabilityDefaults } from './settings';
+
+// Contoh PRD 7.6 tanpa cadangan cuti/sakit; cadangan diuji terpisah.
+const DEFAULT_SETTINGS = { ...BASE_SETTINGS, leaveDaysPerYear: 0, sickDaysPerYear: 0 };
 
 const BE = 1, FE = 2, QA = 3, UX = 4, PM = 5;
 const exact = (h: number) => ({ o: h, m: h, p: h });
@@ -285,5 +290,54 @@ describe('jadwal fitur (Gantt)', () => {
 		const plan = planFeatures(features, team, DEFAULT_SETTINGS);
 		const dev = sprintPlan(new Map([[BE, 460], [FE, 230]]), team, DEFAULT_SETTINGS).devSprints;
 		expect(Math.max(...[...plan.values()].map((s) => s.end))).toBe(dev);
+	});
+});
+
+describe('ketersediaan tim: cuti, sakit, lembur', () => {
+	it('cadangan cuti + sakit mengurangi kapasitas, lembur menambah', () => {
+		const s = { ...DEFAULT_SETTINGS, leaveDaysPerYear: 12, sickDaysPerYear: 12 }; // 24/240 = 10%
+		expect(hoursPerPersonPerSprint(s)).toBeCloseTo(48 * 0.9, 6);
+		expect(hoursPerPersonPerSprint({ ...DEFAULT_SETTINGS, overtimeHoursPerSprint: 10 })).toBeCloseTo(48 + 10 * 0.8, 6);
+		// Snapshot lama tanpa field baru: tetap 48 jam (angka lama tidak berubah).
+		const legacy = { ...DEFAULT_SETTINGS } as Partial<typeof DEFAULT_SETTINGS>;
+		delete legacy.leaveDaysPerYear;
+		delete legacy.sickDaysPerYear;
+		delete legacy.overtimeHoursPerSprint;
+		expect(hoursPerPersonPerSprint(legacy as typeof DEFAULT_SETTINGS)).toBe(48);
+		expect(withAvailabilityDefaults(legacy as typeof DEFAULT_SETTINGS)).toMatchObject({ leaveDaysPerYear: 0, sickDaysPerYear: 0, overtimeHoursPerSprint: 0 });
+	});
+
+	it('upah lembur: jam pertama ×1,5, berikutnya ×2 (PP 35/2021)', () => {
+		expect(overtimePayFactor(10, 10)).toBe(1.5); // 1 jam/hari
+		expect(overtimePayFactor(20, 10)).toBe(1.75); // 2 jam/hari: (1,5 + 2) / 2
+		expect(overtimePayFactor(0, 10)).toBe(0);
+		const plan = costPlan([{ roleId: BE, mp: 1, months: null }], new Map([[BE, 17_300_000]]), 1, [], { ...DEFAULT_SETTINGS, overtimeHoursPerSprint: 10 }, 2);
+		// 1 orang × 10 jam × 2 sprint × (17,3 jt / 173) × 1,5 = 3 jt
+		expect(plan.overtime).toBe(3_000_000);
+		expect(plan.subtotal).toBe(plan.labor + 3_000_000);
+	});
+});
+
+describe('dampak ketersediaan tim di proyek', () => {
+	it('cuti memundurkan, lembur memajukan, peran tanpa fitur diabaikan', async () => {
+		const { availabilityImpact } = await import('../availability.ts');
+		const cal = new WorkCalendar('2027-03-01', DEFAULT_SETTINGS, [{ date: '2027-03-03', name: 'Nyepi', type: 'nasional' }]);
+		expect(cal.workdaysBetween('2027-03-01', '2027-03-07')).toBe(4); // Sen–Min, Rabu libur
+		expect(cal.addWorkdays('2027-03-02', 2)).toBe('2027-03-05');
+		expect(cal.addWorkdays('2027-03-05', -2)).toBe('2027-03-02');
+		const team = [{ roleId: 1, name: 'Backend', mp: 2, months: null }, { roleId: 9, name: 'PM', mp: 1, months: null }];
+		const delivery = new Set([1]);
+		// 1 Backend cuti 4 hari kerja, tim Backend 2 orang → mundur 2 hari; cuti PM tidak dihitung.
+		const leave = availabilityImpact(
+			[
+				{ roleId: 1, kind: 'cuti', people: 1, startDate: '2027-03-01', endDate: '2027-03-05', hours: 0 },
+				{ roleId: 9, kind: 'sakit', people: 1, startDate: '2027-03-01', endDate: '2027-03-12', hours: 0 }
+			],
+			team, delivery, DEFAULT_SETTINGS, cal
+		);
+		expect(leave).toMatchObject({ shiftDays: 2, byRole: [{ roleId: 1, lostDays: 4, delayDays: 2 }] });
+		// Lembur 2 orang × 3 jam × 4 hari = 24 jam = 2 hari kapasitas tim (2 × 6 jam) → maju 2 hari.
+		const ot = availabilityImpact([{ roleId: 1, kind: 'lembur', people: 2, startDate: '2027-03-01', endDate: '2027-03-05', hours: 3 }], team, delivery, DEFAULT_SETTINGS, cal);
+		expect(ot.shiftDays).toBe(-2);
 	});
 });

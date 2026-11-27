@@ -85,6 +85,13 @@
       "when": 1795695716858,
       "tag": "0011_ai_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795747419003,
+      "tag": "0012_project_availability",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,12 @@ export interface EstimateSettings {
 	weeksPerMonth: number;
 	/** Lebar rentang untuk direksi dalam kelipatan σ (PRD 7.4). */
 	rangeSigma: number;
+	/** Cadangan cuti tahunan per orang (hari kerja per tahun); mengurangi kapasitas. */
+	leaveDaysPerYear: number;
+	/** Cadangan sakit per orang (hari kerja per tahun); mengurangi kapasitas. */
+	sickDaysPerYear: number;
+	/** Rencana lembur per orang per sprint (jam); menambah kapasitas dan biaya. */
+	overtimeHoursPerSprint: number;
 }
 
 export const DEFAULT_SETTINGS: EstimateSettings = {
@@ -26,5 +32,19 @@ export const DEFAULT_SETTINGS: EstimateSettings = {
 	contingencyBp: 1500,
 	markupBp: 3000,
 	weeksPerMonth: 4,
-	rangeSigma: 1
+	rangeSigma: 1,
+	leaveDaysPerYear: 12,
+	sickDaysPerYear: 3,
+	overtimeHoursPerSprint: 0
 };
+
+/**
+ * Snapshot parameter estimasi lama dibuat sebelum ada cuti/sakit/lembur; nilainya 0 agar angka
+ * estimasi final dan baseline proyek tidak berubah diam-diam.
+ */
+export const withAvailabilityDefaults = (s: EstimateSettings): EstimateSettings => ({
+	...s,
+	leaveDaysPerYear: s.leaveDaysPerYear ?? 0,
+	sickDaysPerYear: s.sickDaysPerYear ?? 0,
+	overtimeHoursPerSprint: s.overtimeHoursPerSprint ?? 0
+});

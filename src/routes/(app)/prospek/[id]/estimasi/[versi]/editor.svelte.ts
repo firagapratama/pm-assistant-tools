@@ -1,10 +1,10 @@
 // State editor estimasi: satu draf, satu hasil hitung, dipakai semua tab dan panel ringkasan.
 import { fromHours, toHours, type Priority, type ThreePoint } from '#lib/calc/index.ts';
-import { calendarFor, computeDraft, finalizeProblems, type RateSnapshot } from '#lib/estimate.ts';
+import { calendarFor, computeAlternative, computeDraft, finalizeProblems, type RateSnapshot } from '#lib/estimate.ts';
 import type { Holiday } from '#lib/calc/calendar.ts';
 import { decimal } from '#lib/format/index.ts';
 import { roleLabel } from '#lib/labels.ts';
-import type { DraftFeature, EstimateDraft } from '#lib/validation/estimate.ts';
+import { MAX_SCENARIOS, type DraftFeature, type DraftScenario, type EstimateDraft } from '#lib/validation/estimate.ts';
 import { isOrdered } from '#lib/calc/pert.ts';
 
 export type EditorFeature = DraftFeature & { key: number };
@@ -23,6 +23,8 @@ export class EstimateEditor {
 	holidays: Holiday[] = $state([]);
 	team: EstimateDraft['team'] = $state([]);
 	overhead: EstimateDraft['overhead'] = $state([]);
+	/** Skenario alternatif (PRD F7); skenario utama = `team`. */
+	scenarios: DraftScenario[] = $state([]);
 	rates: RateSnapshot[] = $state([]);
 	locked = $state(false);
 	/** Peran yang tampil sebagai kolom di tabel fitur. */
@@ -38,6 +40,7 @@ export class EstimateEditor {
 		this.risks = draft.risks;
 		this.team = structuredClone(draft.team);
 		this.overhead = structuredClone(draft.overhead);
+		this.scenarios = structuredClone(draft.scenarios ?? []);
 		this.rates = rates;
 		this.locked = locked;
 		const used = new Set(draft.features.flatMap((f) => Object.keys(f.efforts).map(Number)));
@@ -54,7 +57,8 @@ export class EstimateEditor {
 			plannedStart: this.plannedStart,
 			features: this.features.map(({ key: _key, ...f }) => f),
 			team: this.team,
-			overhead: this.overhead
+			overhead: this.overhead,
+			...(this.scenarios.length ? { scenarios: this.scenarios } : {})
 		};
 	}
 
@@ -181,6 +185,32 @@ export class EstimateEditor {
 	modules = $derived([...new Set(this.features.map((f) => f.module.trim()).filter(Boolean))]);
 
 	// ── Tim ──
+	// ── Skenario alternatif (PRD F7) ──
+	canAddScenario = $derived(this.scenarios.length < MAX_SCENARIOS);
+	/** Skenario baru menyalin tim utama; nama B, C, D, ... (A = utama). */
+	addScenario() {
+		if (!this.canAddScenario) return;
+		const letter = String.fromCharCode(66 + this.scenarios.length);
+		this.scenarios.push({ name: `Skenario ${letter}`, priorities: null, team: $state.snapshot(this.team).filter((t) => t.mp > 0) });
+	}
+	removeScenario(i: number): () => void {
+		const [removed] = this.scenarios.splice(i, 1);
+		const snapshot = $state.snapshot(removed);
+		return () => this.scenarios.splice(Math.min(i, this.scenarios.length), 0, snapshot);
+	}
+	/** Menjadikan tim skenario sebagai tim utama; mengembalikan fungsi untuk mengurungkan. */
+	useScenarioTeam(s: DraftScenario): () => void {
+		const before = $state.snapshot(this.team);
+		this.team = $state.snapshot(s.team);
+		return () => (this.team = before);
+	}
+	setScenarioMp(s: DraftScenario, roleId: number, mp: number) {
+		const m = s.team.find((t) => t.roleId === roleId);
+		if (m) m.mp = mp;
+		else s.team.push({ roleId, mp, months: null });
+	}
+	alternative = (s: DraftScenario) => computeAlternative(this.draft, s, this.rates, this.holidays);
+
 	member = (roleId: number) => this.team.find((t) => t.roleId === roleId);
 	setMember(roleId: number, patch: Partial<{ mp: number; months: number | null }>) {
 		const m = this.member(roleId);

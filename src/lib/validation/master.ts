@@ -82,7 +82,10 @@ const settingsFields = {
 	contingencyBp: between('Contingency', 0, 10_000, { int: true, unit: '%', scale: 100 }),
 	markupBp: between('Markup', 0, 50_000, { int: true, unit: '%', scale: 100 }),
 	weeksPerMonth: between('Minggu per bulan', 0, 5, { exclusiveMin: true }),
-	rangeSigma: between('Lebar rentang', 0, 3, { exclusiveMin: true })
+	rangeSigma: between('Lebar rentang', 0, 3, { exclusiveMin: true }),
+	leaveDaysPerYear: between('Cuti tahunan', 0, 60),
+	sickDaysPerYear: between('Sakit', 0, 60),
+	overtimeHoursPerSprint: between('Lembur', 0, 80)
 };
 
 const workDaysFitSprint = v.check(
@@ -113,7 +116,10 @@ export const SettingsSchema = v.pipe(
 		contingencyBp: fromText(settingsFields.contingencyBp, pctToBp),
 		markupBp: fromText(settingsFields.markupBp, pctToBp),
 		weeksPerMonth: fromText(settingsFields.weeksPerMonth),
-		rangeSigma: fromText(settingsFields.rangeSigma)
+		rangeSigma: fromText(settingsFields.rangeSigma),
+		leaveDaysPerYear: fromText(settingsFields.leaveDaysPerYear),
+		sickDaysPerYear: fromText(settingsFields.sickDaysPerYear),
+		overtimeHoursPerSprint: fromText(settingsFields.overtimeHoursPerSprint)
 	}),
 	workDaysFitSprint
 );

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { hoursPerPersonPerSprint } from '#lib/calc/capacity.ts';
+	import { WORKDAYS_PER_YEAR, hoursPerPersonPerSprint } from '#lib/calc/capacity.ts';
 	import type { EstimateSettings } from '#lib/calc/settings.ts';
 	import { decimal, parseNumber } from '#lib/format/index.ts';
 	import type { SettingsText } from '#lib/settings-text.ts';
@@ -17,9 +17,13 @@
 		hoursPerPersonPerSprint({
 			workDaysPerSprint: n(f.workDaysPerSprint),
 			effectiveHoursPerDay: n(f.effectiveHoursPerDay),
-			focusFactor: n(f.focusFactor)
+			focusFactor: n(f.focusFactor),
+			leaveDaysPerYear: n(f.leaveDaysPerYear),
+			sickDaysPerYear: n(f.sickDaysPerYear),
+			overtimeHoursPerSprint: n(f.overtimeHoursPerSprint)
 		} as EstimateSettings)
 	);
+	let absentPct = $derived(((n(f.leaveDaysPerYear) + n(f.sickDaysPerYear)) / WORKDAYS_PER_YEAR) * 100);
 	let markup = $derived(n(f.markupBp) / 100);
 	let margin = $derived(markup / (1 + markup));
 	let months = $derived(n(f.sprintWeeks) / n(f.weeksPerMonth));
@@ -87,6 +91,23 @@
 				Kapasitas per orang per sprint
 				<strong>{decimal(perPersonHours, 1)} jam</strong> ≈
 				<strong>{decimal(perPersonHours * n(f.spPerHour), 1)} SP</strong>
+			</p>
+		{/if}
+	</div>
+</div>
+
+<div class="form-bagian">
+	<div class="form-bagian-judul">
+		<h3>Ketersediaan tim</h3>
+		<p>Cadangan cuti dan sakit mengurangi kapasitas setiap orang; lembur menambah kapasitas dan biaya.</p>
+	</div>
+	<div class="isian">
+		{@render field('leaveDaysPerYear', 'Cuti tahunan', 'hari/thn', 'Per orang. UU Ketenagakerjaan: minimal 12 hari')}
+		{@render field('sickDaysPerYear', 'Sakit', 'hari/thn', 'Per orang, perkiraan rata-rata')}
+		{@render field('overtimeHoursPerSprint', 'Lembur', 'jam/sprint', 'Per orang. Upah lembur: 1/173 upah bulanan, ×1,5 jam pertama, ×2 berikutnya')}
+		{#if ok(absentPct)}
+			<p class="info penuh" aria-live="polite">
+				Cuti dan sakit mengurangi kapasitas <strong>{decimal(absentPct, 1)}%</strong> (dari {WORKDAYS_PER_YEAR} hari kerja setahun).
 			</p>
 		{/if}
 	</div>

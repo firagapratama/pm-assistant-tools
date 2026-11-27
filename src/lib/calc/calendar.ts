@@ -78,6 +78,26 @@ export class WorkCalendar {
 		return d;
 	}
 
+	isWorkday = (iso: string) => isWeekday(iso) && !this.index.has(iso);
+
+	/** Jumlah hari kerja dari `from` sampai `to` (inklusif). */
+	workdaysBetween(from: string, to: string): number {
+		let n = 0;
+		for (let d = from; d <= to; d = addDays(d, 1)) if (this.isWorkday(d)) n++;
+		return n;
+	}
+
+	/** Maju (n > 0) atau mundur (n < 0) sebanyak n hari kerja dari `iso`. */
+	addWorkdays(iso: string, n: number): string {
+		let d = iso;
+		const step = n < 0 ? -1 : 1;
+		for (let left = Math.abs(n); left > 0; ) {
+			d = addDays(d, step);
+			if (this.isWorkday(d)) left--;
+		}
+		return d;
+	}
+
 	/** Hari kerja terakhir dari sprint ke-(count). */
 	endDate(count: number): string {
 		return count <= 0 ? this.start : this.workdayOnOrBefore(this.sprint(count - 1).to);

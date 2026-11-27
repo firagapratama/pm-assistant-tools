@@ -59,11 +59,16 @@
 		<section aria-labelledby="estimasi-judul">
 			<div class="judul-baris">
 				<h2 id="estimasi-judul" class="judul-bagian">Estimasi</h2>
-				{#if data.estimates.length > 0 && canEstimate}
-					<form novalidate method="POST" action="?/createEstimate" use:enhance={withToast()}>
-						<button class="btn kecil"><Plus size={14} strokeWidth={2} aria-hidden="true" /> Versi baru</button>
-					</form>
-				{/if}
+				<div class="judul-aksi">
+					{#if data.estimates.length > 1}
+						<a class="btn kecil" href="/prospek/{p.id}/bandingkan">Bandingkan versi</a>
+					{/if}
+					{#if data.estimates.length > 0 && canEstimate}
+						<form novalidate method="POST" action="?/createEstimate" use:enhance={withToast()}>
+							<button class="btn kecil"><Plus size={14} strokeWidth={2} aria-hidden="true" /> Versi baru</button>
+						</form>
+					{/if}
+				</div>
 			</div>
 			{#if estimateError || estimateDeleteError}<p class="pesan-error" role="alert">{estimateError ?? estimateDeleteError}</p>{/if}
 			{#if data.estimates.length === 0}
@@ -270,6 +275,10 @@
 </div>
 
 <style>
+	.judul-aksi {
+		display: flex;
+		gap: var(--jarak-2);
+	}
 	.judul {
 		display: flex;
 		align-items: center;

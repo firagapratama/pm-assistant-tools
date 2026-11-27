@@ -1,6 +1,6 @@
 // Perhitungan dan pemeriksaan estimasi yang dipakai bersama oleh editor (browser) dan server.
 import { WorkCalendar, computeScenario, type Holiday, type ScenarioResult } from './calc/index.ts';
-import type { EstimateDraft } from './validation/estimate.ts';
+import type { DraftScenario, EstimateDraft } from './validation/estimate.ts';
 
 /** Peran + rate yang disalin ke estimasi saat dibuat. */
 export interface RateSnapshot {
@@ -24,6 +24,12 @@ export function computeDraft(draft: EstimateDraft, rates: RateSnapshot[], holida
 		overhead: draft.overhead,
 		settings: draft.settings
 	});
+}
+
+/** Hasil skenario alternatif (PRD F7): tim skenario, dan hanya fitur dengan prioritas yang dipilih. */
+export function computeAlternative(draft: EstimateDraft, scenario: DraftScenario, rates: RateSnapshot[], holidays: Holiday[] = []): ScenarioResult {
+	const features = scenario.priorities ? draft.features.filter((f) => scenario.priorities!.includes(f.priority)) : draft.features;
+	return computeDraft({ ...draft, features, team: scenario.team }, rates, holidays);
 }
 
 /** Masalah yang menghalangi finalisasi; kosong berarti siap. */

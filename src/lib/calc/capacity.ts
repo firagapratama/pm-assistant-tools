@@ -34,8 +34,16 @@ export interface SprintPlan {
 const EPS = 1e-9;
 export const roundUp = (x: number) => Math.ceil(x - EPS);
 
+/** Hari kerja setahun di luar libur nasional dan cuti bersama (≈ 261 hari kerja − ±21 libur). */
+export const WORKDAYS_PER_YEAR = 240;
+
+/** Porsi hari kerja yang benar-benar hadir setelah cadangan cuti tahunan dan sakit (0–1). */
+export const availability = (s: EstimateSettings) =>
+	Math.max(0, 1 - ((s.leaveDaysPerYear ?? 0) + (s.sickDaysPerYear ?? 0)) / WORKDAYS_PER_YEAR);
+
+/** Jam kerja nyata per orang per sprint: hadir × jam efektif × focus, ditambah lembur (juga × focus). */
 export const hoursPerPersonPerSprint = (s: EstimateSettings) =>
-	s.workDaysPerSprint * s.effectiveHoursPerDay * s.focusFactor;
+	(s.workDaysPerSprint * s.effectiveHoursPerDay * availability(s) + (s.overtimeHoursPerSprint ?? 0)) * s.focusFactor;
 
 /** Batas aman jumlah sprint saat menelusuri kapasitas per sprint. */
 const MAX_SPRINTS = 1000;

@@ -1,6 +1,7 @@
 // Status proyek berjalan: dipakai halaman proyek dan laporan mingguan (F14), satu sumber perhitungan.
 import { WorkCalendar, type Holiday } from './calc/calendar.ts';
 import type { EstimateSettings } from './calc/settings.ts';
+import { availabilityImpact, type AvailabilityEntry } from './availability.ts';
 import { scopeChange, type CrImpact, type CrStatus } from './change-request.ts';
 import { weightedProgress, type ProjectBaseline } from './project.ts';
 import { isHighRisk, isOpen, reviewOverdue, type RaidLike } from './raid.ts';
@@ -23,6 +24,10 @@ export interface StatusInput {
 	raid: (RaidLike & { id: number; description: string; owner: string; createdAt: Date })[];
 	/** Change request; yang disetujui menggeser target selesai (baseline tetap). */
 	changeRequests?: { number: number; title: string; status: CrStatus; requestDate: string; decisionDate: string | null; impact: CrImpact | null; effect: CrImpact }[];
+	/** Cuti, sakit, dan lembur tercatat per peran; menggeser proyeksi selesai. */
+	availability?: AvailabilityEntry[];
+	/** Peran yang punya effort fitur di baseline; ketidakhadiran peran lain (mis. PM) tidak menggeser jadwal. */
+	deliveryRoleIds?: number[];
 	/** Decision log (F12), untuk laporan mingguan. */
 	decisions?: { number: number; date: string; decision: string; decidedBy: string; supersedesNumber: number | null }[];
 	/** Status yang ditetapkan PM; menggantikan status otomatis. */
@@ -64,7 +69,9 @@ export function projectStatus(input: StatusInput) {
 	);
 	// Sprint stabilisasi/UAT selalu menyusul fitur terakhir, jadi fitur yang mundur ikut memundurkan akhir proyek.
 	const lastFeatureSprint = Math.max(0, ...input.schedule.map((r) => r.planEnd));
-	const featuresEnd = lastFeatureSprint ? calendar.endDate(lastFeatureSprint + b.totalSprints - b.devSprints) : b.endDate;
+	const planEnd = lastFeatureSprint ? calendar.endDate(lastFeatureSprint + b.totalSprints - b.devSprints) : b.endDate;
+	const availability = availabilityImpact(input.availability ?? [], b.team ?? [], new Set(input.deliveryRoleIds ?? []), input.settings, calendar);
+	const featuresEnd = availability.shiftDays ? calendar.addWorkdays(planEnd, availability.shiftDays) : planEnd;
 	const plannedEnd = [...input.activities.map((a) => a.endDate), featuresEnd].sort().at(-1)!;
 	/** Target selesai = baseline + sprint CR yang disetujui. */
 	const targetEnd = approvedSprints ? calendar.endDate(b.totalSprints + approvedSprints) : b.endDate;
@@ -109,6 +116,7 @@ export function projectStatus(input: StatusInput) {
 		expected,
 		plannedEnd,
 		targetEnd,
+		availability,
 		scope: scopeChange(b, approvedCr.flatMap((c) => (c.impact ? [c.impact] : []))),
 		pendingCr: (input.changeRequests ?? []).filter((c) => c.status === 'diajukan').length,
 		slipDays,
@@ -132,7 +140,8 @@ export type ProjectStatus = ReturnType<typeof projectStatus>;
 export function statusInputFrom(
 	p: {
 		project: { startDate: string; baseline: ProjectBaseline; healthOverride: Health | null; healthReason: string | null };
-		estimate: { draft: { settings: EstimateSettings }; holidays: Holiday[] };
+		estimate: { draft: { settings: EstimateSettings; features?: { efforts: Record<number, unknown> }[] }; holidays: Holiday[] };
+		availability?: AvailabilityEntry[];
 		schedule: StatusInput['schedule'];
 		activities: StatusInput['activities'];
 		raid: StatusInput['raid'];
@@ -151,6 +160,8 @@ export function statusInputFrom(
 		raid: p.raid,
 		changeRequests: p.changeRequests,
 		decisions: p.decisions,
+		availability: p.availability,
+		deliveryRoleIds: [...new Set((p.estimate.draft.features ?? []).flatMap((f) => Object.keys(f.efforts).map(Number)))],
 		override: p.project.healthOverride ? { health: p.project.healthOverride, reason: p.project.healthReason ?? '' } : null,
 		today
 	};

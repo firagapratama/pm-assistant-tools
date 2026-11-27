@@ -15,6 +15,8 @@ import type { Health } from '#lib/project-status.ts';
 import { RAID_STATUSES, RAID_TYPES, type RaidStatus, type RaidType } from '#lib/raid.ts';
 import { RaidError, deleteRaid, saveRaid } from '#lib/server/raid.ts';
 import { DecisionError, saveDecision } from '#lib/server/decisions.ts';
+import { AvailabilityError, deleteAvailability, saveAvailability } from '#lib/server/availability.ts';
+import type { AvailabilityKind } from '#lib/availability.ts';
 import { CrError, decideChangeRequest, deleteChangeRequest, saveChangeRequest } from '#lib/server/change-requests.ts';
 import { ReportError, createWeeklyReport, deleteDraftReport, listReports, saveNarrative, sendReport } from '#lib/server/reports.ts';
 import type { Actions, PageServerLoad } from './$types';
@@ -31,7 +33,7 @@ export const load: PageServerLoad = ({ params }) => {
 };
 
 const scale = (v: string | undefined) => (v ? Number(v) : null);
-const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError || e instanceof CrError || e instanceof DecisionError;
+const known = (e: unknown) => e instanceof ScheduleError || e instanceof RaidError || e instanceof ReportError || e instanceof CrError || e instanceof DecisionError || e instanceof AvailabilityError;
 
 function effortsOf(raw: string | undefined) {
 	try {
@@ -229,6 +231,33 @@ export const actions: Actions = {
 			if (known(e)) return fail(400, { message: (e as Error).message });
 			throw e;
 		}
+	},
+
+	saveAvailability: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		try {
+			saveAvailability(db, project.id, form.id ? idOf(form.id) : null, {
+				roleId: Number(form.roleId),
+				kind: form.kind as AvailabilityKind,
+				people: Number(form.people),
+				startDate: form.startDate ?? '',
+				endDate: form.endDate ?? '',
+				hours: Number(form.hours ?? 0),
+				note: form.note ?? ''
+			});
+		} catch (e) {
+			if (known(e)) return fail(400, { message: (e as Error).message });
+			throw e;
+		}
+		return { message: 'Ketersediaan tim disimpan' };
+	},
+
+	deleteAvailability: async ({ params, request }) => {
+		const { project } = load404(params.id);
+		const form = await formOf(request);
+		deleteAvailability(db, project.id, idOf(form.id));
+		return { message: 'Catatan dihapus' };
 	},
 
 	setHealth: async ({ params, request }) => {

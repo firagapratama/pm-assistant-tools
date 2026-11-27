@@ -6,6 +6,7 @@ import { projectStatus, statusInputFrom } from '../project-status.ts';
 import { HIGH_RISK, raidScore, reviewOverdue, severity } from '../raid.ts';
 import { weekOf } from '../report.ts';
 import { dashboardData } from './dashboard.ts';
+import { deleteAvailability, saveAvailability } from './availability.ts';
 import { openDb, type Db } from './db/index.ts';
 import { createEstimate, finalizeEstimate, getEstimate, saveEstimate } from './estimates.ts';
 import { createRole, loadOfficialHolidays } from './master.ts';
@@ -203,5 +204,26 @@ describe('dashboard utama', () => {
 		expect(d.due.map((x) => x.name)).toContain('Kick-off proyek');
 		expect(d.intake).toHaveLength(6);
 		expect(d.intake.at(-1)!.month).toBe('2027-07');
+	});
+});
+
+describe('ketersediaan tim di proyek', () => {
+	it('cuti Backend memundurkan proyeksi selesai; lembur memajukan; validasi', () => {
+		const before = status('2027-07-05');
+		const BE = getProject(db, projectId)!.project.baseline.team[0].roleId;
+		const leave = saveAvailability(db, projectId, null, { roleId: BE, kind: 'cuti', people: 1, startDate: '2027-07-12', endDate: '2027-07-16', hours: 0, note: 'Cuti keluarga' });
+		const after = status('2027-07-05');
+		expect(after.availability.shiftDays).toBe(5); // 1 dari 1 Backend, 5 hari kerja
+		expect(after.plannedEnd > before.plannedEnd).toBe(true);
+		expect(after.slipDays).toBeGreaterThan(before.slipDays);
+
+		saveAvailability(db, projectId, null, { roleId: BE, kind: 'lembur', people: 1, startDate: '2027-07-19', endDate: '2027-07-23', hours: 6, note: '' });
+		expect(status('2027-07-05').availability.shiftDays).toBe(0); // 5 hari × 6 jam = 5 hari kapasitas
+
+		expect(() => saveAvailability(db, projectId, null, { roleId: 999, kind: 'cuti', people: 1, startDate: '2027-07-12', endDate: '2027-07-12', hours: 0, note: '' })).toThrow(/tim proyek/);
+		expect(() => saveAvailability(db, projectId, null, { roleId: BE, kind: 'cuti', people: 1, startDate: '2027-07-12', endDate: '2027-07-10', hours: 0, note: '' })).toThrow(/sebelum/);
+		expect(() => saveAvailability(db, projectId, null, { roleId: BE, kind: 'lembur', people: 1, startDate: '2027-07-12', endDate: '2027-07-12', hours: 0, note: '' })).toThrow(/Jam lembur/);
+		deleteAvailability(db, projectId, leave);
+		expect(getProject(db, projectId)!.availability).toHaveLength(1);
 	});
 });

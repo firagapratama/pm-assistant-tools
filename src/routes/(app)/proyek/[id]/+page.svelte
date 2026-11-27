@@ -10,6 +10,7 @@
 	import { date, decimal, range, rupiah, rupiahShort, todayIso } from '#lib/format/index.ts';
 	import { maxPlanSprint } from '#lib/project.ts';
 	import { HEALTHS, HEALTH_LABEL, projectStatus, statusInputFrom, type Health } from '#lib/project-status.ts';
+	import AvailabilityPanel from './AvailabilityPanel.svelte';
 	import CrTab from './CrTab.svelte';
 	import DecisionTab from './DecisionTab.svelte';
 	import RaidTab from './RaidTab.svelte';
@@ -322,6 +323,7 @@
 				sprint rencana tidak mengubah baseline (kolom Baseline).
 			</p>
 		</details>
+		<AvailabilityPanel items={data.availability} team={b.team} impact={st.availability} {today} {post} />
 	</section>
 {:else if tab === 'ringkasan'}
 	<section class="panel status-blok" aria-labelledby="status-judul">
@@ -350,6 +352,7 @@
 			<strong>{date(plannedEnd)}</strong>
 			<span class="sub" class:waspada-teks={slipDays > 0}>
 				{slipDays > 0 ? `${slipDays} hari setelah ${ref}` : slipDays < 0 ? `${-slipDays} hari lebih awal` : `sesuai ${ref}`}
+				{#if st.availability.shiftDays}· {st.availability.shiftDays > 0 ? `+${st.availability.shiftDays}` : st.availability.shiftDays} hari kerja dari cuti/sakit/lembur{/if}
 			</span>
 		</div>
 		<div>

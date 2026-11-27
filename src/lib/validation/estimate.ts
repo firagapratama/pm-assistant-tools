@@ -29,6 +29,16 @@ export const DraftFeatureSchema = v.object({
 	)
 });
 
+export const MAX_SCENARIOS = 5;
+
+const TeamSchema = v.array(
+	v.object({
+		roleId,
+		mp: v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(100)),
+		months: v.nullable(v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(120)))
+	})
+);
+
 export const EstimateDraftSchema = v.object({
 	settings: SettingsNumbersSchema,
 	assumptions: text(5000),
@@ -39,12 +49,20 @@ export const EstimateDraftSchema = v.object({
 		v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/), v.check((d) => !Number.isNaN(Date.parse(d)), 'Tanggal mulai tidak valid.'))
 	),
 	features: v.pipe(v.array(DraftFeatureSchema), v.maxLength(MAX_FEATURES, `Maksimal ${MAX_FEATURES} fitur per estimasi.`)),
-	team: v.array(
-		v.object({
-			roleId,
-			mp: v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(100)),
-			months: v.nullable(v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValue(120)))
-		})
+	team: TeamSchema,
+	/** Skenario alternatif (PRD F7): tim lain dan/atau hanya prioritas tertentu. Skenario utama = `team`. */
+	scenarios: v.optional(
+		v.pipe(
+			v.array(
+				v.object({
+					name: v.pipe(v.string(), v.trim(), v.minLength(1, 'Nama skenario belum diisi.'), v.maxLength(80, 'Maksimal 80 karakter.')),
+					/** null = semua prioritas */
+					priorities: v.nullable(v.pipe(v.array(v.picklist(['must', 'should', 'could'])), v.minLength(1))),
+					team: TeamSchema
+				})
+			),
+			v.maxLength(MAX_SCENARIOS, `Maksimal ${MAX_SCENARIOS} skenario alternatif.`)
+		)
 	),
 	overhead: v.pipe(
 		v.array(v.object({ label: text(120), amount: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1e13)) })),
@@ -54,3 +72,4 @@ export const EstimateDraftSchema = v.object({
 
 export type EstimateDraft = v.InferOutput<typeof EstimateDraftSchema>;
 export type DraftFeature = EstimateDraft['features'][number];
+export type DraftScenario = NonNullable<EstimateDraft['scenarios']>[number];
